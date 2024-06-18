@@ -225,6 +225,8 @@ type CommitMultiStore interface {
 
 	// SetMetrics sets the metrics for the KVStore
 	SetMetrics(metrics metrics.StoreMetrics)
+
+	DynamicAddNamesapceStore(newKeys ...StoreKey) error
 }
 
 //---------subsp-------------------------------

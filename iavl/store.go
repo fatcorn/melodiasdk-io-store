@@ -117,6 +117,11 @@ func (st *Store) GetImmutable(version int64) (*Store, error) {
 	}, nil
 }
 
+// todo, implements this method or remove
+//func (st *Store) UpdateVersion(targetVersion int64) {
+//	st.tree.SaveVersion()
+//}
+
 // Commit commits the current store state and returns a CommitID with the new
 // version and hash.
 func (st *Store) Commit() types.CommitID {
