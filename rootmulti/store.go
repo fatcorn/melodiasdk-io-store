@@ -30,6 +30,7 @@ import (
 	"cosmossdk.io/store/tracekv"
 	"cosmossdk.io/store/transient"
 	"cosmossdk.io/store/types"
+	"strconv"
 )
 
 const (
@@ -555,6 +556,46 @@ func (rs *Store) Commit() types.CommitID {
 func (rs *Store) WorkingHash() []byte {
 	storeInfos := make([]types.StoreInfo, 0, len(rs.stores))
 	storeKeys := keysFromStoreKeyMap(rs.stores)
+
+	for _, key := range storeKeys {
+		store := rs.stores[key]
+
+		if store.GetStoreType() != types.StoreTypeIAVL {
+			continue
+		}
+
+		if !rs.removalMap[key] {
+			si := types.StoreInfo{
+				Name: key.Name(),
+				CommitId: types.CommitID{
+					Hash: store.WorkingHash(),
+				},
+			}
+			storeInfos = append(storeInfos, si)
+		}
+	}
+
+	sort.SliceStable(storeInfos, func(i, j int) bool {
+		return storeInfos[i].Name < storeInfos[j].Name
+	})
+
+	return types.CommitInfo{StoreInfos: storeInfos}.Hash()
+}
+
+// WorkingHash returns the current hash of the store.
+// it will be used to get the current app hash before commit.
+func (rs *Store) NamespaceWorkingHash(moudleNames []string, namespaceId uint64) []byte {
+	storeInfos := make([]types.StoreInfo, 0, len(rs.stores))
+	//storeKeys := keysFromStoreKeyMap(rs.stores)
+
+	//namespaceIdStr :=
+	storeKeys := make([]types.StoreKey, 0)
+
+	for _, name := range moudleNames {
+		storeKeyName := name + "_" + strconv.FormatUint(namespaceId, 10)
+		storeKey := rs.keysByName[storeKeyName]
+		storeKeys = append(storeKeys, storeKey)
+	}
 
 	for _, key := range storeKeys {
 		store := rs.stores[key]
