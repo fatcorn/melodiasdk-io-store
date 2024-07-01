@@ -406,3 +406,12 @@ func (store *Store) setCacheValue(key, value []byte, dirty bool) {
 		store.unsortedCache[keyStr] = struct{}{}
 	}
 }
+
+// Reset resets in the internal caches.
+func (cmgr *Store) ResetCache() {
+	commitCache, ok := cmgr.parent.(types.CommitKVStore)
+	if ok {
+		commitCache.ClearCache()
+	}
+
+}

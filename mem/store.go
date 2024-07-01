@@ -40,6 +40,7 @@ func (s Store) GetStoreType() types.StoreType {
 func (s Store) CacheWrap() types.CacheWrap {
 	return cachekv.NewStore(s)
 }
+func (cmgr *Store) ClearCache() {}
 
 // CacheWrapWithTrace implements KVStore.
 func (s Store) CacheWrapWithTrace(w io.Writer, tc types.TraceContext) types.CacheWrap {
@@ -60,3 +61,4 @@ func (s *Store) GetPruning() pruningtypes.PruningOptions {
 func (s Store) LastCommitID() (id types.CommitID) { return }
 
 func (s Store) WorkingHash() (hash []byte) { return }
+func (st *Store) ResetCache()              {}

@@ -133,6 +133,9 @@ func (st *Store) Commit() types.CommitID {
 	}
 }
 
+func (cmgr *Store) ClearCache() {}
+func (st *Store) ResetCache()   {}
+
 // WorkingHash returns the hash of the current working tree.
 func (st *Store) WorkingHash() []byte {
 	return st.tree.WorkingHash()

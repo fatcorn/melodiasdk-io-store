@@ -130,3 +130,12 @@ func (ckv *CommitKVStoreCache) Delete(key []byte) {
 	ckv.cache.Remove(string(key))
 	ckv.CommitKVStore.Delete(key)
 }
+
+// Reset resets in the internal caches.
+func (cmgr *CommitKVStoreCache) ClearCache() {
+	// Clear the map.
+	// Please note that we are purposefully using the map clearing idiom.
+	// See https://github.com/cosmos/cosmos-sdk/issues/6681.
+	cache, _ := lru.NewARC(int(1000))
+	cmgr.cache = cache
+}

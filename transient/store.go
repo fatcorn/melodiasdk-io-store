@@ -38,6 +38,8 @@ func (ts *Store) GetPruning() pruningtypes.PruningOptions {
 	return pruningtypes.NewPruningOptions(pruningtypes.PruningUndefined)
 }
 
+func (cmgr *Store) ClearCache() {}
+
 // Implements CommitStore
 func (ts *Store) LastCommitID() types.CommitID {
 	return types.CommitID{}
@@ -51,3 +53,5 @@ func (ts *Store) WorkingHash() []byte {
 func (ts *Store) GetStoreType() types.StoreType {
 	return types.StoreTypeTransient
 }
+
+func (st *Store) ResetCache() {}

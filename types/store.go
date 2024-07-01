@@ -27,6 +27,8 @@ type Committer interface {
 
 	SetPruning(pruningtypes.PruningOptions)
 	GetPruning() pruningtypes.PruningOptions
+
+	ClearCache()
 }
 
 // Stores of MultiStore must implement CommitStore.
@@ -301,6 +303,8 @@ type CacheWrap interface {
 
 	// CacheWrapWithTrace recursively wraps again with tracing enabled.
 	CacheWrapWithTrace(w io.Writer, tc TraceContext) CacheWrap
+
+	ResetCache()
 }
 
 type CacheWrapper interface {

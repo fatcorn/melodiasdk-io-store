@@ -22,6 +22,14 @@ type commitDBStoreAdapter struct {
 	dbadapter.Store
 }
 
+func (cdsa commitDBStoreAdapter) ClearCache() {
+	//TODO implement me
+}
+
+func (cdsa commitDBStoreAdapter) ResetCache() {
+	//TODO implement me
+}
+
 func (cdsa commitDBStoreAdapter) Commit() types.CommitID {
 	return types.CommitID{
 		Version: -1,

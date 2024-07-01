@@ -76,6 +76,10 @@ type Store struct {
 	commitHeader        cmtproto.Header
 }
 
+func (rs *Store) ClearCache() {
+	//TODO implement me
+}
+
 var (
 	_ types.CommitMultiStore = (*Store)(nil)
 	_ types.Queryable        = (*Store)(nil)
@@ -105,6 +109,8 @@ func NewStore(db dbm.DB, logger log.Logger, metricGatherer metrics.StoreMetrics)
 func (rs *Store) GetPruning() pruningtypes.PruningOptions {
 	return rs.pruningManager.GetOptions()
 }
+
+func (st *Store) ResetCache() {}
 
 // SetPruning sets the pruning strategy on the root store and all the sub-stores.
 // Note, calling SetPruning on the root store prior to LoadVersion or
@@ -1088,6 +1094,8 @@ func (rs *Store) RollbackToVersion(target int64) error {
 			if err != nil {
 				return err
 			}
+			rs.GetKVStore(key).CacheWrap().ResetCache()
+
 		}
 	}
 
