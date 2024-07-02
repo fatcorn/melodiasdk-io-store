@@ -309,11 +309,17 @@ func (rs *Store) DynamicAddNamesapceStore(newKeys ...types.StoreKey) error {
 	//newStores := make(map[types.StoreKey]types.CommitKVStore)
 
 	//storesKeys := make([]types.StoreKey, 0, len(rs.storesParams))
+	validKeys := make([]types.StoreKey, 0)
 	for _, key := range newKeys {
+		// in same namespace with multi vm moudle may lead stores
+		if _, ok := rs.keysByName[key.Name()]; ok {
+			continue
+		}
+		validKeys = append(validKeys, key)
 		rs.MountStoreWithDB(key, types.StoreTypeIAVL, nil)
 	}
 
-	for _, key := range newKeys {
+	for _, key := range validKeys {
 		storeParams := rs.storesParams[key]
 		//storeParams.initialVersion = uint64(rs.commitHeader.Height + 1)
 		commitID := rs.getCommitID(infos, key.Name())
