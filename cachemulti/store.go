@@ -78,7 +78,7 @@ func newCacheMultiStoreFromCMS(cms Store) Store {
 		stores[k] = v
 	}
 
-	return NewFromKVStore(cms.db, stores, nil, cms.traceWriter, cms.traceContext)
+	return NewFromKVStore(cms.db, stores, cms.keys, cms.traceWriter, cms.traceContext)
 }
 
 // SetTracer sets the tracer for the MultiStore that the underlying
@@ -162,7 +162,8 @@ func (cms Store) GetStore(key types.StoreKey) types.Store {
 
 // GetKVStore returns an underlying KVStore by key.
 func (cms Store) GetKVStore(key types.StoreKey) types.KVStore {
-	store := cms.stores[key]
+	validKey := cms.keys[key.Name()]
+	store := cms.stores[validKey]
 	if key == nil || store == nil {
 		panic(fmt.Sprintf("kv store with key %v has not been registered in stores", key))
 	}

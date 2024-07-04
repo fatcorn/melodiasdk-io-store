@@ -30,6 +30,7 @@ import (
 	"cosmossdk.io/store/tracekv"
 	"cosmossdk.io/store/transient"
 	"cosmossdk.io/store/types"
+	"strconv"
 )
 
 const (
@@ -304,6 +305,55 @@ func (rs *Store) loadVersion(ver int64, upgrades *types.StoreUpgrades) error {
 	return nil
 }
 
+func (rs *Store) DynamicAddNamesapceStore(newKeys ...types.StoreKey) error {
+	infos := make(map[string]types.StoreInfo)
+
+	rs.logger.Info("AddNamesapceStore", "add new namesapce store", newKeys)
+	//cInfo := &types.CommitInfo{}
+	//
+	//// load each Store (note this doesn't panic on unmounted keys now)
+	//newStores := make(map[types.StoreKey]types.CommitKVStore)
+
+	//storesKeys := make([]types.StoreKey, 0, len(rs.storesParams))
+	validKeys := make([]types.StoreKey, 0)
+	for _, key := range newKeys {
+		// in same namespace with multi vm moudle may lead stores
+		if _, ok := rs.keysByName[key.Name()]; ok {
+			continue
+		}
+		validKeys = append(validKeys, key)
+		rs.MountStoreWithDB(key, types.StoreTypeIAVL, nil)
+	}
+
+	for _, key := range validKeys {
+		storeParams := rs.storesParams[key]
+		//storeParams.initialVersion = uint64(rs.commitHeader.Height + 1)
+		commitID := rs.getCommitID(infos, key.Name())
+		//commitID.Version = rs.commitHeader.Height
+
+		//// If it has been added, set the initial version
+		//if upgrades.IsAdded(key.Name()) || upgrades.RenamedFrom(key.Name()) != "" {
+		//	storeParams.initialVersion = uint64(ver) + 1
+		//} else if commitID.Version != ver && storeParams.typ == types.StoreTypeIAVL {
+		//	return fmt.Errorf("version of store %s mismatch root store's version; expected %d got %d; new stores should be added using StoreUpgrades", key.Name(), ver, commitID.Version)
+		//}
+
+		store, err := rs.loadCommitStoreFromParams(key, commitID, storeParams)
+		if err != nil {
+			return errors.New(fmt.Sprintf("Load Namespace store %s failed cause %v", key.Name(), err))
+		}
+		// todo, use appointed version to create store, rather than for commit
+		for i := 0; i < int(rs.commitHeader.Height); i++ {
+			store.Commit()
+		}
+
+		rs.stores[key] = store
+		rs.keysByName[key.Name()] = key
+	}
+
+	return nil
+}
+
 func (rs *Store) getCommitID(infos map[string]types.StoreInfo, name string) types.CommitID {
 	info, ok := infos[name]
 	if !ok {
@@ -484,7 +534,6 @@ func (rs *Store) Commit() types.CommitID {
 	if rs.commitHeader.Height != version {
 		rs.logger.Debug("commit header and version mismatch", "header_height", rs.commitHeader.Height, "version", version)
 	}
-
 	rs.lastCommitInfo = commitStores(version, rs.stores, rs.removalMap)
 	rs.lastCommitInfo.Timestamp = rs.commitHeader.Time
 	defer rs.flushMetadata(rs.db, version, rs.lastCommitInfo)
@@ -519,6 +568,46 @@ func (rs *Store) Commit() types.CommitID {
 func (rs *Store) WorkingHash() []byte {
 	storeInfos := make([]types.StoreInfo, 0, len(rs.stores))
 	storeKeys := keysFromStoreKeyMap(rs.stores)
+
+	for _, key := range storeKeys {
+		store := rs.stores[key]
+
+		if store.GetStoreType() != types.StoreTypeIAVL {
+			continue
+		}
+
+		if !rs.removalMap[key] {
+			si := types.StoreInfo{
+				Name: key.Name(),
+				CommitId: types.CommitID{
+					Hash: store.WorkingHash(),
+				},
+			}
+			storeInfos = append(storeInfos, si)
+		}
+	}
+
+	sort.SliceStable(storeInfos, func(i, j int) bool {
+		return storeInfos[i].Name < storeInfos[j].Name
+	})
+
+	return types.CommitInfo{StoreInfos: storeInfos}.Hash()
+}
+
+// WorkingHash returns the current hash of the store.
+// it will be used to get the current app hash before commit.
+func (rs *Store) NamespaceWorkingHash(moudleNames []string, namespaceId uint64) []byte {
+	storeInfos := make([]types.StoreInfo, 0, len(rs.stores))
+	//storeKeys := keysFromStoreKeyMap(rs.stores)
+
+	//namespaceIdStr :=
+	storeKeys := make([]types.StoreKey, 0)
+
+	for _, name := range moudleNames {
+		storeKeyName := name + "_" + strconv.FormatUint(namespaceId, 10)
+		storeKey := rs.keysByName[storeKeyName]
+		storeKeys = append(storeKeys, storeKey)
+	}
 
 	for _, key := range storeKeys {
 		store := rs.stores[key]
@@ -653,7 +742,8 @@ func (rs *Store) GetStore(key types.StoreKey) types.Store {
 // NOTE: The returned KVStore may be wrapped in an inter-block cache if it is
 // set on the root store.
 func (rs *Store) GetKVStore(key types.StoreKey) types.KVStore {
-	s := rs.stores[key]
+	validKey := rs.keysByName[key.Name()]
+	s := rs.stores[validKey]
 	if s == nil {
 		panic(fmt.Sprintf("store does not exist for key: %s", key.Name()))
 	}

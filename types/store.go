@@ -31,6 +31,12 @@ type Committer interface {
 	ClearCache()
 }
 
+// something that can persist to disk
+type NamespaceCommitter interface {
+	// WorkingHash returns the hash of the KVStore's state before commit.
+	NamespaceWorkingHash([]string, uint64) []byte
+}
+
 // Stores of MultiStore must implement CommitStore.
 type CommitStore interface {
 	Committer
@@ -168,6 +174,7 @@ type CommitMultiStore interface {
 	Committer
 	MultiStore
 	snapshottypes.Snapshotter
+	NamespaceCommitter
 
 	// Mount a store of type using the given db.
 	// If db == nil, the new store will use the CommitMultiStore db.
@@ -227,6 +234,8 @@ type CommitMultiStore interface {
 
 	// SetMetrics sets the metrics for the KVStore
 	SetMetrics(metrics metrics.StoreMetrics)
+
+	DynamicAddNamesapceStore(newKeys ...StoreKey) error
 }
 
 //---------subsp-------------------------------
