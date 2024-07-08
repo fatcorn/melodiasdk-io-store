@@ -18,6 +18,7 @@ import (
 
 	errorsmod "cosmossdk.io/errors"
 	"cosmossdk.io/log"
+	"cosmossdk.io/store/cache"
 	"cosmossdk.io/store/cachemulti"
 	"cosmossdk.io/store/dbadapter"
 	"cosmossdk.io/store/iavl"
@@ -337,15 +338,24 @@ func (rs *Store) DynamicAddNamesapceStore(newKeys ...types.StoreKey) error {
 		//} else if commitID.Version != ver && storeParams.typ == types.StoreTypeIAVL {
 		//	return fmt.Errorf("version of store %s mismatch root store's version; expected %d got %d; new stores should be added using StoreUpgrades", key.Name(), ver, commitID.Version)
 		//}
+		//storeParams.initialVersion = uint64(rs.commitHeader.Height)
 
 		store, err := rs.loadCommitStoreFromParams(key, commitID, storeParams)
 		if err != nil {
 			return errors.New(fmt.Sprintf("Load Namespace store %s failed cause %v", key.Name(), err))
 		}
 		// todo, use appointed version to create store, rather than for commit
-		for i := 0; i < int(rs.commitHeader.Height); i++ {
-			store.Commit()
+
+		if commitKVStoreCache, ok := store.(*cache.CommitKVStoreCache); ok {
+			if ivalStore, ok := commitKVStoreCache.CommitKVStore.(*iavl.Store); ok {
+				ivalStore.SetInitialVersion(rs.commitHeader.Height)
+			}
 		}
+		store.Commit()
+
+		//for i := 0; i < int(rs.commitHeader.Height); i++ {
+		//	store.Commit()
+		//}
 
 		rs.stores[key] = store
 		rs.keysByName[key.Name()] = key
