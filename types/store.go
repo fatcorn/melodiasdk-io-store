@@ -10,6 +10,8 @@ import (
 	"cosmossdk.io/store/metrics"
 	pruningtypes "cosmossdk.io/store/pruning/types"
 	snapshottypes "cosmossdk.io/store/snapshots/types"
+
+	bfttypes "github.com/cometbft/cometbft/types"
 )
 
 type Store interface {
@@ -382,6 +384,16 @@ func (st StoreType) String() string {
 type StoreKey interface {
 	Name() string
 	String() string
+}
+
+func NewStoreKeyByDMStoreInfo(key string, storeType bfttypes.DependModuleStoreType) StoreKey {
+	switch storeType {
+	case bfttypes.DependModuleStoreTypeKV:
+		return NewKVStoreKey(key)
+	case bfttypes.DependModuleStoreTypeTransient:
+		return NewTransientStoreKey(key)
+	}
+	panic("unreachable code")
 }
 
 // CapabilityKey represent the Cosmos SDK keys for object-capability
