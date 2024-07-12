@@ -323,7 +323,16 @@ func (rs *Store) DynamicAddNamesapceStore(newKeys ...types.StoreKey) error {
 			continue
 		}
 		validKeys = append(validKeys, key)
-		rs.MountStoreWithDB(key, types.StoreTypeIAVL, nil)
+		var storeType types.StoreType
+		switch key.(type) {
+		case *types.KVStoreKey:
+			storeType = types.StoreTypeIAVL
+		case *types.TransientStoreKey:
+			storeType = types.StoreTypeTransient
+		default:
+			panic("Only 2 types store key was rejected for now")
+		}
+		rs.MountStoreWithDB(key, storeType, nil)
 	}
 
 	for _, key := range validKeys {
