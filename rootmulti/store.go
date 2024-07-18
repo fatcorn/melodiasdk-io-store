@@ -1323,6 +1323,7 @@ func commitStores(version int64, storeMap map[types.StoreKey]types.CommitKVStore
 			si.Name = key.Name()
 			si.CommitId = commitID
 			storeInfos = append(storeInfos, si)
+			fmt.Printf("============> block height %v, store %v, hash %x", commitID.Version, key.Name(), commitID.Hash)
 		}
 	}
 
