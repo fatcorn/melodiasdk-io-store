@@ -7,6 +7,7 @@ import (
 
 	"cosmossdk.io/store/cachekv"
 	"cosmossdk.io/store/types"
+	"sync"
 )
 
 var (
@@ -28,6 +29,9 @@ type (
 	CommitKVStoreCache struct {
 		types.CommitKVStore
 		cache *lru.ARCCache
+		// the same CommitKVStoreCache may be accessed concurrently by multiple
+		// goroutines due to transaction parallelization
+		mtx sync.RWMutex
 	}
 
 	// CommitKVStoreCacheManager maintains a mapping from a StoreKey to a
@@ -37,6 +41,10 @@ type (
 	CommitKVStoreCacheManager struct {
 		cacheSize uint
 		caches    map[string]types.CommitKVStore
+
+		// the same CommitKVStoreCache may be accessed concurrently by multiple
+		// goroutines due to transaction parallelization
+		mtx sync.RWMutex
 	}
 )
 
@@ -94,6 +102,22 @@ func (ckv *CommitKVStoreCache) CacheWrap() types.CacheWrap {
 	return cachekv.NewStore(ckv)
 }
 
+// getFromCache queries the write-through cache for a value by key.
+func (ckv *CommitKVStoreCache) getFromCache(key []byte) (interface{}, bool) {
+	ckv.mtx.RLock()
+	defer ckv.mtx.RUnlock()
+	return ckv.cache.Get(string(key))
+}
+
+// getAndWriteToCache queries the underlying CommitKVStore and writes the result
+func (ckv *CommitKVStoreCache) getAndWriteToCache(key []byte) []byte {
+	ckv.mtx.RLock()
+	defer ckv.mtx.RUnlock()
+	value := ckv.CommitKVStore.Get(key)
+	ckv.cache.Add(string(key), value)
+	return value
+}
+
 // Get retrieves a value by key. It will first look in the write-through cache.
 // If the value doesn't exist in the write-through cache, the query is delegated
 // to the underlying CommitKVStore.
@@ -117,6 +141,9 @@ func (ckv *CommitKVStoreCache) Get(key []byte) []byte {
 // Set inserts a key/value pair into both the write-through cache and the
 // underlying CommitKVStore.
 func (ckv *CommitKVStoreCache) Set(key, value []byte) {
+	ckv.mtx.Lock()
+	defer ckv.mtx.Unlock()
+
 	types.AssertValidKey(key)
 	types.AssertValidValue(value)
 
@@ -127,6 +154,9 @@ func (ckv *CommitKVStoreCache) Set(key, value []byte) {
 // Delete removes a key/value pair from both the write-through cache and the
 // underlying CommitKVStore.
 func (ckv *CommitKVStoreCache) Delete(key []byte) {
+	ckv.mtx.Lock()
+	defer ckv.mtx.Unlock()
+
 	ckv.cache.Remove(string(key))
 	ckv.CommitKVStore.Delete(key)
 }
