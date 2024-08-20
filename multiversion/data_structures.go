@@ -102,16 +102,16 @@ func (item *multiVersionItem) GetLatestBeforeIndex(index int) (MultiVersionValue
 
 func (item *multiVersionItem) Set(index int, incarnation int, value []byte) {
 	types.AssertValidValue(value)
-	//item.mtx.Lock()
-	//defer item.mtx.Unlock()
+	item.mtx.Lock()
+	defer item.mtx.Unlock()
 
 	valueItem := NewValueItem(index, incarnation, value)
 	item.valueTree.ReplaceOrInsert(valueItem)
 }
 
 func (item *multiVersionItem) Delete(index int, incarnation int) {
-	//item.mtx.Lock()
-	//defer item.mtx.Unlock()
+	item.mtx.Lock()
+	defer item.mtx.Unlock()
 
 	deletedItem := NewDeletedItem(index, incarnation)
 	item.valueTree.ReplaceOrInsert(deletedItem)
