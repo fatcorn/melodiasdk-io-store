@@ -18,7 +18,6 @@ require (
 	github.com/hashicorp/go-hclog v1.5.0
 	github.com/hashicorp/go-metrics v0.5.1
 	github.com/hashicorp/go-plugin v1.5.2
-	github.com/hashicorp/golang-lru v1.0.2
 	github.com/spf13/cast v1.6.0 // indirect
 	github.com/stretchr/testify v1.8.4
 	github.com/tidwall/btree v1.7.0
@@ -28,10 +27,14 @@ require (
 	gotest.tools/v3 v3.5.1
 )
 
-require github.com/google/btree v1.1.2
+require (
+	github.com/google/btree v1.1.2
+	github.com/hashicorp/golang-lru v0.5.0
+)
 
 require (
 	github.com/DataDog/zstd v1.5.5 // indirect
+	github.com/allegro/bigcache v1.2.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.3.2 // indirect
 	github.com/celestiaorg/nmt v0.20.0 // indirect

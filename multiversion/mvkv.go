@@ -94,6 +94,7 @@ type VersionIndexedStore struct {
 	incarnation      int
 	// have abort channel here for aborting transactions
 	abortChannel chan scheduler.Abort
+	totalTask    int
 }
 
 func (store *VersionIndexedStore) ResetCache() {
@@ -105,7 +106,7 @@ var _ types.KVStore = (*VersionIndexedStore)(nil)
 var _ ReadsetHandler = (*VersionIndexedStore)(nil)
 var _ IterateSetHandler = (*VersionIndexedStore)(nil)
 
-func NewVersionIndexedStore(parent types.KVStore, multiVersionStore MultiVersionStore, transactionIndex, incarnation int, abortChannel chan scheduler.Abort) *VersionIndexedStore {
+func NewVersionIndexedStore(parent types.KVStore, multiVersionStore MultiVersionStore, transactionIndex, incarnation int, abortChannel chan scheduler.Abort, totalTask int) *VersionIndexedStore {
 	return &VersionIndexedStore{
 		readset:           make(map[string][][]byte),
 		writeset:          make(map[string][]byte),
@@ -116,6 +117,7 @@ func NewVersionIndexedStore(parent types.KVStore, multiVersionStore MultiVersion
 		transactionIndex:  transactionIndex,
 		incarnation:       incarnation,
 		abortChannel:      abortChannel,
+		totalTask:         totalTask,
 	}
 }
 
@@ -151,6 +153,7 @@ func (store *VersionIndexedStore) Get(key []byte) []byte {
 
 	types.AssertValidKey(key)
 	strKey := string(key)
+	//keyHex := hex.EncodeToString(key)
 	// first check the MVKV writeset, and return that value if present
 	cacheValue, ok := store.writeset[strKey]
 	if ok {
@@ -379,13 +382,16 @@ func (store *VersionIndexedStore) setValue(key, value []byte) {
 	keyStr := string(key)
 	store.writeset[keyStr] = value
 }
+func (store *VersionIndexedStore) NewKey(key string, totalTask int) {
+	store.multiVersionStore.NewKey(key, totalTask)
+}
 
 func (store *VersionIndexedStore) WriteToMultiVersionStore() {
 	// TODO: remove?
 	// store.mtx.Lock()
 	// defer store.mtx.Unlock()
 	// defer telemetry.MeasureSince(time.Now(), "store", "mvkv", "write_mvs")
-	store.multiVersionStore.SetWriteset(store.transactionIndex, store.incarnation, store.writeset)
+	store.multiVersionStore.SetWriteset(store.transactionIndex, store.incarnation, store.writeset, store.totalTask)
 	store.multiVersionStore.SetReadset(store.transactionIndex, store.readset)
 	store.multiVersionStore.SetIterateset(store.transactionIndex, store.iterateset)
 }

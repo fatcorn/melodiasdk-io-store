@@ -2,6 +2,7 @@ package cache
 
 import (
 	"fmt"
+	"os"
 
 	lru "github.com/hashicorp/golang-lru"
 
@@ -16,7 +17,7 @@ var (
 
 	// DefaultCommitKVStoreCacheSize defines the persistent ARC cache size for a
 	// CommitKVStoreCache.
-	DefaultCommitKVStoreCacheSize uint = 1000
+	DefaultCommitKVStoreCacheSize uint = 100000
 )
 
 type (
@@ -72,7 +73,13 @@ func NewCommitKVStoreCacheManager(size uint) *CommitKVStoreCacheManager {
 // The returned Cache is meant to be used in a persistent manner.
 func (cmgr *CommitKVStoreCacheManager) GetStoreCache(key types.StoreKey, store types.CommitKVStore) types.CommitKVStore {
 	if cmgr.caches[key.Name()] == nil {
-		cmgr.caches[key.Name()] = NewCommitKVStoreCache(store, cmgr.cacheSize)
+		cache := os.Getenv("cache")
+		if cache != "" {
+			cmgr.caches[key.Name()] = NewCommitKVStoreBigCache(store, cmgr.cacheSize)
+		} else {
+			cmgr.caches[key.Name()] = NewCommitKVStoreCache(store, cmgr.cacheSize)
+		}
+
 	}
 
 	return cmgr.caches[key.Name()]
@@ -81,7 +88,14 @@ func (cmgr *CommitKVStoreCacheManager) GetStoreCache(key types.StoreKey, store t
 // Unwrap returns the underlying CommitKVStore for a given StoreKey.
 func (cmgr *CommitKVStoreCacheManager) Unwrap(key types.StoreKey) types.CommitKVStore {
 	if ckv, ok := cmgr.caches[key.Name()]; ok {
-		return ckv.(*CommitKVStoreCache).CommitKVStore
+		cache := os.Getenv("cache")
+		if cache != "" {
+			return ckv.(*CommitKVStoreBigCache).CommitKVStore
+
+		} else {
+			return ckv.(*CommitKVStoreCache).CommitKVStore
+
+		}
 	}
 
 	return nil

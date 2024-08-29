@@ -94,6 +94,40 @@ func (store *Store) newMVSValidationIterator(
 	}
 }
 
+func (store *ListStore) newMVSValidationIterator(
+	index int,
+	start, end []byte,
+	items *dbm.MemDB,
+	ascending bool,
+	writeset WriteSet,
+	abortChannel chan occtypes.Abort,
+) *validationIterator {
+	var iter types.Iterator
+	var err error
+
+	if ascending {
+		iter, err = items.Iterator(start, end)
+	} else {
+		iter, err = items.ReverseIterator(start, end)
+	}
+
+	if err != nil {
+		if iter != nil {
+			iter.Close()
+		}
+		panic(err)
+	}
+
+	return &validationIterator{
+		Iterator:     iter,
+		mvStore:      store,
+		index:        index,
+		abortChannel: abortChannel,
+		writeset:     writeset,
+		readCache:    make(map[string][]byte),
+	}
+}
+
 // try to get value from the writeset, otherwise try to get from multiversion store, otherwise try to get from parent iterator
 func (vi *validationIterator) Value() []byte {
 	key := vi.Iterator.Key()

@@ -2,30 +2,32 @@ package multiversion
 
 import (
 	"bytes"
+	"cosmossdk.io/store/types"
 	"cosmossdk.io/store/types/occ"
 	occtypes "cosmossdk.io/store/types/occ"
+	"encoding/hex"
 	"fmt"
 	db "github.com/cosmos/cosmos-db"
+	"os"
 	"sort"
 	"sync"
-
-	"cosmossdk.io/store/types"
 )
 
 type MultiVersionStore interface {
 	GetLatest(key []byte) (value MultiVersionValueItem)
+	NewKey(key string, totalTask int)
 	GetLatestBeforeIndex(index int, key []byte) (value MultiVersionValueItem)
 	Has(index int, key []byte) bool
 	WriteLatestToStore()
-	SetWriteset(index int, incarnation int, writeset WriteSet)
-	InvalidateWriteset(index int, incarnation int)
+	SetWriteset(index int, incarnation int, writeset WriteSet, totalTask int)
+	InvalidateWriteset(index int, incarnation int, totalTask int)
 	SetEstimatedWriteset(index int, incarnation int, writeset WriteSet)
 	GetAllWritesetKeys() map[int][]string
 	CollectIteratorItems(index int) *db.MemDB
 	SetReadset(index int, readset ReadSet)
 	GetReadset(index int) ReadSet
 	ClearReadset(index int)
-	VersionedIndexedStore(index int, incarnation int, abortChannel chan occ.Abort) *VersionIndexedStore
+	VersionedIndexedStore(index int, incarnation int, abortChannel chan occ.Abort, totalTask int) *VersionIndexedStore
 	SetIterateset(index int, iterateset Iterateset)
 	GetIterateset(index int) Iterateset
 	ClearIterateset(index int)
@@ -61,8 +63,8 @@ func NewMultiVersionStore(parentStore types.KVStore) *Store {
 }
 
 // VersionedIndexedStore creates a new versioned index store for a given incarnation and transaction index
-func (s *Store) VersionedIndexedStore(index int, incarnation int, abortChannel chan occ.Abort) *VersionIndexedStore {
-	return NewVersionIndexedStore(s.parentStore, s, index, incarnation, abortChannel)
+func (s *Store) VersionedIndexedStore(index int, incarnation int, abortChannel chan occ.Abort, totalTask int) *VersionIndexedStore {
+	return NewVersionIndexedStore(s.parentStore, s, index, incarnation, abortChannel, totalTask)
 }
 
 // GetLatest implements MultiVersionStore.
@@ -140,7 +142,7 @@ func (s *Store) removeOldWriteset(index int, newWriteSet WriteSet) {
 
 // SetWriteset sets a writeset for a transaction index, and also writes all of the multiversion items in the writeset to the multiversion store.
 // TODO: returns a list of NEW keys added
-func (s *Store) SetWriteset(index int, incarnation int, writeset WriteSet) {
+func (s *Store) SetWriteset(index int, incarnation int, writeset WriteSet, totalTask int) {
 	// TODO: add telemetry spans
 	// remove old writeset if it exists
 	s.removeOldWriteset(index, writeset)
@@ -148,7 +150,22 @@ func (s *Store) SetWriteset(index int, incarnation int, writeset WriteSet) {
 	writeSetKeys := make([]string, 0, len(writeset))
 	for key, value := range writeset {
 		writeSetKeys = append(writeSetKeys, key)
-		loadVal, _ := s.multiVersionMap.LoadOrStore(key, NewMultiVersionItem()) // init if necessary
+		loadVal, ok := s.multiVersionMap.Load(key)
+		if !ok {
+			versionList := os.Getenv("versionList")
+			if versionList != "" {
+				item := NewMultiVersionListItem(totalTask)
+				s.multiVersionMap.Store(key, item)
+				loadVal = item
+			} else {
+				item := NewMultiVersionItem()
+				s.multiVersionMap.Store(key, item)
+				loadVal = item
+			}
+
+		}
+
+		//loadVal, _ := s.multiVersionMap.LoadOrStore(key, NewMultiVersionListItem(10000)) // init if necessary
 		mvVal := loadVal.(MultiVersionValue)
 		if value == nil {
 			// delete if nil value
@@ -163,7 +180,7 @@ func (s *Store) SetWriteset(index int, incarnation int, writeset WriteSet) {
 }
 
 // InvalidateWriteset iterates over the keys for the given index and incarnation writeset and replaces with ESTIMATEs
-func (s *Store) InvalidateWriteset(index int, incarnation int) {
+func (s *Store) InvalidateWriteset(index int, incarnation int, totalTask int) {
 	keysAny, found := s.txWritesetKeys.Load(index)
 	if !found {
 		return
@@ -171,7 +188,7 @@ func (s *Store) InvalidateWriteset(index int, incarnation int) {
 	keys := keysAny.([]string)
 	for _, key := range keys {
 		// invalidate all of the writeset items - is this suboptimal? - we could potentially do concurrently if slow because locking is on an item specific level
-		val, _ := s.multiVersionMap.LoadOrStore(key, NewMultiVersionItem())
+		val, _ := s.multiVersionMap.LoadOrStore(key, NewMultiVersionListItem(totalTask))
 		val.(MultiVersionValue).SetEstimate(index, incarnation)
 	}
 	// we leave the writeset in place because we'll need it for key removal later if/when we replace with a new writeset
@@ -187,7 +204,7 @@ func (s *Store) SetEstimatedWriteset(index int, incarnation int, writeset WriteS
 	for key := range writeset {
 		writeSetKeys = append(writeSetKeys, key)
 
-		mvVal, _ := s.multiVersionMap.LoadOrStore(key, NewMultiVersionItem()) // init if necessary
+		mvVal, _ := s.multiVersionMap.LoadOrStore(key, NewMultiVersionListItem(10000)) // init if necessary
 		mvVal.(MultiVersionValue).SetEstimate(index, incarnation)
 	}
 	sort.Strings(writeSetKeys)
@@ -350,12 +367,13 @@ func (s *Store) checkReadsetAtIndex(index int) (bool, []int) {
 		}
 		value := valueArr[0]
 		// get the latest value from the multiversion store
+		hexKey := hex.EncodeToString([]byte(key))
 		latestValue := s.GetLatestBeforeIndex(index, []byte(key))
 		if latestValue == nil {
 			// this is possible if we previously read a value from a transaction write that was later reverted, so this time we read from parent store
 			parentVal := s.parentStore.Get([]byte(key))
 			if !bytes.Equal(parentVal, value) {
-				fmt.Println("1key:", key, "parentVal:", parentVal, "value:", value)
+				fmt.Println("1key:", hexKey, "parentVal:", parentVal, "value:", value)
 				valid = false
 			}
 		} else {
@@ -367,12 +385,12 @@ func (s *Store) checkReadsetAtIndex(index int) (bool, []int) {
 					// conflict
 					// TODO: would we want to return early?
 					conflictSet[latestValue.Index()] = struct{}{}
-					fmt.Println("2key:", key, "latestValue:", latestValue, "value:", value)
+					fmt.Println("2key:", hexKey, "latestValue:", latestValue, "value:", value)
 					valid = false
 				}
 			} else if !bytes.Equal(latestValue.Value(), value) {
 				conflictSet[latestValue.Index()] = struct{}{}
-				fmt.Println("3key:", key, "latestValue:", latestValue, "value:", value)
+				fmt.Println("3key:", hexKey, "latestValue:", hex.EncodeToString(latestValue.Value()), "value:", hex.EncodeToString(value))
 				valid = false
 			}
 		}
@@ -399,7 +417,20 @@ func (s *Store) ValidateTransactionState(index int) (bool, []int) {
 
 	return iteratorValid && readsetValid, conflictIndices
 }
-
+func (s *Store) NewKey(key string, totalTask int) {
+	keyString := string(key)
+	_, found := s.multiVersionMap.Load(keyString)
+	if !found {
+		versionList := os.Getenv("versionList")
+		if versionList != "" {
+			item := NewMultiVersionListItem(totalTask)
+			s.multiVersionMap.Store(key, item)
+		} else {
+			item := NewMultiVersionItem()
+			s.multiVersionMap.Store(key, item)
+		}
+	}
+}
 func (s *Store) WriteLatestToStore() {
 	// sort the keys
 	keys := []string{}
