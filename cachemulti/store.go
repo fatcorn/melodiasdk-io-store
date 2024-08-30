@@ -122,7 +122,8 @@ func (cms Store) GetStoreType() types.StoreType {
 // Write calls Write on each underlying store.
 func (cms Store) Write() {
 	cms.db.Write()
-	for _, store := range cms.stores {
+	for t, store := range cms.stores {
+		println("cache multi store write", "key", t.Name())
 		store.Write()
 	}
 }

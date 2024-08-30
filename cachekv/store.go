@@ -2,11 +2,11 @@ package cachekv
 
 import (
 	"bytes"
+	"encoding/hex"
+	dbm "github.com/cosmos/cosmos-db"
 	"io"
 	"sort"
 	"sync"
-
-	dbm "github.com/cosmos/cosmos-db"
 
 	"cosmossdk.io/store/cachekv/internal"
 	"cosmossdk.io/store/internal/conv"
@@ -157,6 +157,7 @@ func (store *Store) Write() {
 		// be sure if the underlying store might do a save with the byteslice or
 		// not. Once we get confirmation that .Delete is guaranteed not to
 		// save the byteslice, then we can assume only a read-only copy is sufficient.
+		println("cache kv store write", "key", hex.EncodeToString([]byte(obj.key)), "value", hex.EncodeToString(obj.val.value))
 		if obj.val.value != nil {
 			// It already exists in the parent, hence update it.
 			store.parent.Set([]byte(obj.key), obj.val.value)
