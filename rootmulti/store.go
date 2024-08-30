@@ -381,6 +381,12 @@ func (rs *Store) DynamicAddNamesapceStore(newKeys ...types.StoreKey) error {
 				ivalStore.SetInitialVersion(rs.commitHeader.Height)
 			}
 		}
+
+		if commitKVStoreCache, ok := store.(*cache.CommitKVStoreBigCache); ok {
+			if ivalStore, ok := commitKVStoreCache.CommitKVStore.(*iavl.Store); ok {
+				ivalStore.SetInitialVersion(rs.commitHeader.Height)
+			}
+		}
 		store.Commit()
 
 		//for i := 0; i < int(rs.commitHeader.Height); i++ {
