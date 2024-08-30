@@ -107,7 +107,9 @@ func (ckv *CommitKVStoreBigCache) Set(key, value []byte) {
 	if value != nil {
 		ckv.cache.Set(string(key), value)
 	}
-
+	if hex.EncodeToString(key) == "0171920e3cb420fbd8ba9a495e6f801c50375ea127" {
+		println(" cache set commit kv store", "key", hex.EncodeToString(key), "value", hex.EncodeToString(value))
+	}
 	ckv.CommitKVStore.Set(key, value)
 }
 

@@ -1,6 +1,7 @@
 package iavl
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -199,6 +200,9 @@ func (st *Store) CacheWrapWithTrace(w io.Writer, tc types.TraceContext) types.Ca
 
 // Implements types.KVStore.
 func (st *Store) Set(key, value []byte) {
+	if hex.EncodeToString(key) == "0171920e3cb420fbd8ba9a495e6f801c50375ea127" {
+		println(" iavl set ", "key", hex.EncodeToString(key), "value", hex.EncodeToString(value))
+	}
 	types.AssertValidKey(key)
 	types.AssertValidValue(value)
 	_, err := st.tree.Set(key, value)
@@ -209,10 +213,14 @@ func (st *Store) Set(key, value []byte) {
 
 // Implements types.KVStore.
 func (st *Store) Get(key []byte) []byte {
+
 	defer st.metrics.MeasureSince("store", "iavl", "get")
 	value, err := st.tree.Get(key)
 	if err != nil {
 		panic(err)
+	}
+	if hex.EncodeToString(key) == "0171920e3cb420fbd8ba9a495e6f801c50375ea127" {
+		println(" iavl get ", "key", hex.EncodeToString(key), "value", hex.EncodeToString(value))
 	}
 	return value
 }
