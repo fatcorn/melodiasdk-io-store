@@ -167,10 +167,11 @@ func (s *ListStore) SetWriteset(index int, incarnation int, writeset WriteSet, t
 	// remove old writeset if it exists
 	s.removeOldWriteset(index, writeset)
 
+	println("set write set", "index", index, "write set length", len(writeset))
 	writeSetKeys := make([]string, 0, len(writeset))
 	for key, value := range writeset {
-		//toString := hex.EncodeToString([]byte(key))
-		//println("set write set ====", "key", toString, "index", index)
+		toString := hex.EncodeToString([]byte(key))
+		println("set write set ====", "key", toString, "index", index)
 		writeSetKeys = append(writeSetKeys, key)
 		loadVal, ok := s.multiVersionMap[key]
 		if !ok {
@@ -179,14 +180,14 @@ func (s *ListStore) SetWriteset(index int, incarnation int, writeset WriteSet, t
 
 		//loadVal, _ := s.multiVersionMap.LoadOrStore(key, NewMultiVersionListItem(10000)) // init if necessary
 		mvVal := loadVal.(MultiVersionValue)
-		//keyStr := hex.EncodeToString([]byte(key))
+		keyStr := hex.EncodeToString([]byte(key))
 		if value == nil {
 			// delete if nil value
 			// TODO: sync map
-			//println("delete value","index",index,"incarnation",incarnation,"val",mvVal,"key",keyStr)
+			println("delete value", "index", index, "incarnation", incarnation, "val", mvVal, "key", keyStr)
 			mvVal.Delete(index, incarnation)
 		} else {
-			//println("set value","index",index,"incarnation",incarnation,"val",mvVal,"key",keyStr)
+			println("set value", "index", index, "incarnation", incarnation, "val", mvVal, "key", keyStr)
 			mvVal.Set(index, incarnation, value)
 		}
 	}
