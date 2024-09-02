@@ -434,6 +434,8 @@ func (s *ListStore) WriteLatestToStore() {
 			continue
 		}
 		mvValue, found := val.(MultiVersionValue).GetLatestNonEstimate()
+		println("write latest to store", "key", hex.EncodeToString([]byte(key)), "mv value", mvValue, "found", found)
+
 		if !found {
 			// this means that at some point, there was an estimate, but we have since removed it so there isn't anything writeable at the key, so we can skip
 			continue
