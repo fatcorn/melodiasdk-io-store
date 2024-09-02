@@ -2,7 +2,6 @@ package multiversion
 
 import (
 	"bytes"
-	"encoding/hex"
 	"fmt"
 	dbm "github.com/cosmos/cosmos-db"
 	"io"
@@ -382,7 +381,6 @@ func (store *VersionIndexedStore) setValue(key, value []byte) {
 
 	keyStr := string(key)
 	store.writeset[keyStr] = value
-	println("version index store ", "key", hex.EncodeToString(key), "value", hex.EncodeToString(value))
 }
 func (store *VersionIndexedStore) NewKey(key string, totalTask int) {
 	store.multiVersionStore.NewKey(key, totalTask)

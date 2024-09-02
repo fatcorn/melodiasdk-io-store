@@ -2,10 +2,8 @@ package cachemulti
 
 import (
 	"fmt"
-	"io"
-	"reflect"
-
 	dbm "github.com/cosmos/cosmos-db"
+	"io"
 
 	"cosmossdk.io/store/cachekv"
 	"cosmossdk.io/store/dbadapter"
@@ -123,10 +121,7 @@ func (cms Store) GetStoreType() types.StoreType {
 // Write calls Write on each underlying store.
 func (cms Store) Write() {
 	cms.db.Write()
-	for t, store := range cms.stores {
-		getType := reflect.TypeOf(store)
-
-		println("cache multi store write", "key", t.Name(), "type", getType.String())
+	for _, store := range cms.stores {
 		store.Write()
 	}
 }

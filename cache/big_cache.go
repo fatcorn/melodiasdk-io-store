@@ -7,7 +7,6 @@ import (
 
 	"cosmossdk.io/store/cachekv"
 	"cosmossdk.io/store/types"
-	"encoding/hex"
 	"sync"
 )
 
@@ -76,7 +75,7 @@ func (ckv *CommitKVStoreBigCache) Get(key []byte) []byte {
 	types.AssertValidKey(key)
 
 	keyStr := string(key)
-	toString := hex.EncodeToString(key)
+	//toString := hex.hexEncodeToString(key)
 	//if toString == "0214dc6f17bbec824fff8f86587966b2047db6ab73677374616b65" || toString == "0214f1829676db577682e944fc3493d451b67ff3e29f7374616b65" || toString == "0214603871c2ddd41c26ee77495e2e31e6de7f9957e0657468" {
 	//	return nil
 	//}
@@ -88,7 +87,6 @@ func (ckv *CommitKVStoreBigCache) Get(key []byte) []byte {
 	// cache miss; write to cache
 	value := ckv.CommitKVStore.Get(key)
 
-	println("commit get kv store========", "key", toString)
 	if value != nil {
 		ckv.cache.Set(keyStr, value)
 	}
@@ -107,9 +105,7 @@ func (ckv *CommitKVStoreBigCache) Set(key, value []byte) {
 	if value != nil {
 		ckv.cache.Set(string(key), value)
 	}
-	if hex.EncodeToString(key) == "0171920e3cb420fbd8ba9a495e6f801c50375ea127" {
-		println(" cache set commit kv store", "key", hex.EncodeToString(key), "value", hex.EncodeToString(value))
-	}
+
 	ckv.CommitKVStore.Set(key, value)
 }
 

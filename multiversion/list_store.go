@@ -43,7 +43,6 @@ func NewMultiVersionListStore(parentStore types.KVStore, totalTask int) *ListSto
 	//	panic(fmt.Errorf("failed to create KVStore cache: %s", err))
 	//}
 	keysList := make([]VersionStoreIndexKeys, totalTask)
-	println("new version index store====================", "total", totalTask)
 	versionMap := make(map[string]any)
 	return &ListStore{
 		multiVersionMap: versionMap,
@@ -167,11 +166,8 @@ func (s *ListStore) SetWriteset(index int, incarnation int, writeset WriteSet, t
 	// remove old writeset if it exists
 	s.removeOldWriteset(index, writeset)
 
-	println("set write set", "index", index, "write set length", len(writeset))
 	writeSetKeys := make([]string, 0, len(writeset))
 	for key, value := range writeset {
-		toString := hex.EncodeToString([]byte(key))
-		println("set write set ====", "key", toString, "index", index)
 		writeSetKeys = append(writeSetKeys, key)
 		loadVal, ok := s.multiVersionMap[key]
 		if !ok {
@@ -180,14 +176,14 @@ func (s *ListStore) SetWriteset(index int, incarnation int, writeset WriteSet, t
 
 		//loadVal, _ := s.multiVersionMap.LoadOrStore(key, NewMultiVersionListItem(10000)) // init if necessary
 		mvVal := loadVal.(MultiVersionValue)
-		keyStr := hex.EncodeToString([]byte(key))
+		//keyStr := hex.EncodeToString([]byte(key))
 		if value == nil {
 			// delete if nil value
 			// TODO: sync map
-			println("delete value", "index", index, "incarnation", incarnation, "val", mvVal, "key", keyStr)
+			//println("delete value", "index", index, "incarnation", incarnation, "val", mvVal, "key", keyStr)
 			mvVal.Delete(index, incarnation)
 		} else {
-			println("set value", "index", index, "incarnation", incarnation, "val", mvVal, "key", keyStr)
+			//println("set value", "index", index, "incarnation", incarnation, "val", mvVal, "key", keyStr)
 			mvVal.Set(index, incarnation, value)
 		}
 	}
@@ -435,7 +431,6 @@ func (s *ListStore) WriteLatestToStore() {
 			continue
 		}
 		mvValue, found := val.(MultiVersionValue).GetLatestNonEstimate()
-		println("write latest to store", "key", hex.EncodeToString([]byte(key)), "mv value", mvValue, "found", found)
 
 		if !found {
 			// this means that at some point, there was an estimate, but we have since removed it so there isn't anything writeable at the key, so we can skip
