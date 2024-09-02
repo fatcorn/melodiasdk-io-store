@@ -120,6 +120,7 @@ func (store *Store) Write() {
 		}
 		return true
 	})
+	println("cache kv store", "sortedCache length", len(sortedCache))
 
 	// Iterate unsortedCache, if unsortedCache has more than 1 item, break.
 	unsortedCacheSize := 0

@@ -3,6 +3,7 @@ package cachemulti
 import (
 	"fmt"
 	"io"
+	"reflect"
 
 	dbm "github.com/cosmos/cosmos-db"
 
@@ -123,7 +124,9 @@ func (cms Store) GetStoreType() types.StoreType {
 func (cms Store) Write() {
 	cms.db.Write()
 	for t, store := range cms.stores {
-		println("cache multi store write", "key", t.Name())
+		getType := reflect.TypeOf(store)
+
+		println("cache multi store write", "key", t.Name(), "type", getType.String())
 		store.Write()
 	}
 }
