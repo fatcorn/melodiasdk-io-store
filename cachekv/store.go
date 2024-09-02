@@ -160,7 +160,7 @@ func (store *Store) Write() {
 		// save the byteslice, then we can assume only a read-only copy is sufficient.
 		getType := reflect.TypeOf(store.parent)
 
-		println("cache kv store write", "key", hex.EncodeToString([]byte(obj.key)), "value", hex.EncodeToString(obj.val.value), "getType.Name()", getType.Name())
+		println("cache kv store write", "key", hex.EncodeToString([]byte(obj.key)), "value", hex.EncodeToString(obj.val.value), "getType.Name()", getType.String())
 		if obj.val.value != nil {
 			// It already exists in the parent, hence update it.
 			store.parent.Set([]byte(obj.key), obj.val.value)
