@@ -1,13 +1,13 @@
 package cache
 
 import (
-	"fmt"
-	"github.com/allegro/bigcache"
-	"time"
-
 	"cosmossdk.io/store/cachekv"
 	"cosmossdk.io/store/types"
+	"encoding/hex"
+	"fmt"
+	"github.com/allegro/bigcache"
 	"sync"
+	"time"
 )
 
 var (
@@ -35,7 +35,7 @@ type (
 )
 
 func NewCommitKVStoreBigCache(store types.CommitKVStore, size uint) *CommitKVStoreBigCache {
-	config := bigcache.DefaultConfig(time.Minute * 100000)
+	config := bigcache.DefaultConfig(time.Minute * 100)
 	cache, err := bigcache.NewBigCache(config)
 	if err != nil {
 		panic(fmt.Errorf("failed to create KVStore cache: %s", err))
@@ -75,11 +75,17 @@ func (ckv *CommitKVStoreBigCache) Get(key []byte) []byte {
 	types.AssertValidKey(key)
 
 	keyStr := string(key)
-	//toString := hex.hexEncodeToString(key)
-	//if toString == "0214dc6f17bbec824fff8f86587966b2047db6ab73677374616b65" || toString == "0214f1829676db577682e944fc3493d451b67ff3e29f7374616b65" || toString == "0214603871c2ddd41c26ee77495e2e31e6de7f9957e0657468" {
-	//	return nil
-	//}
+	toString := hex.EncodeToString(key)
+	if toString == "0214dc6f17bbec824fff8f86587966b2047db6ab73677374616b65" || toString == "0214f1829676db577682e944fc3493d451b67ff3e29f7374616b65" || toString == "0214603871c2ddd41c26ee77495e2e31e6de7f9957e0657468" {
+		return nil
+	}
+	//t1 := time.Now()
 	valueI, err := ckv.cache.Get(keyStr)
+	//t2 := time.Now()
+	//if t2.Sub(t1).Milliseconds() >= 1 {
+	//}
+	//println("get cache time============", "sub", t2.Sub(t1).String(), "cache length", ckv.cache.Len(), "cache", ckv.cache)
+
 	if err == nil {
 		return valueI
 	}
