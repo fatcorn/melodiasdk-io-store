@@ -103,16 +103,20 @@ func (ckv *CommitKVStoreBigCache) Get(key []byte) []byte {
 // Set inserts a key/value pair into both the write-through cache and the
 // underlying CommitKVStore.
 func (ckv *CommitKVStoreBigCache) Set(key, value []byte) {
-	ckv.mtx.Lock()
-	defer ckv.mtx.Unlock()
+	//ckv.mtx.Lock()
+	//defer ckv.mtx.Unlock()
 
 	types.AssertValidKey(key)
 	types.AssertValidValue(value)
+	//t1 := time.Now()
 	if value != nil {
 		ckv.cache.Set(string(key), value)
 	}
+	////t2 := time.Now()
 
 	ckv.CommitKVStore.Set(key, value)
+	//t3 := time.Now()
+	//println("commit kv store", "set cache time", t2.Sub(t1).String(), "set iavl time", t3.Sub(t2).String())
 }
 
 // Delete removes a key/value pair from both the write-through cache and the
@@ -122,7 +126,7 @@ func (ckv *CommitKVStoreBigCache) Delete(key []byte) {
 	defer ckv.mtx.Unlock()
 
 	//ckv.cache.Remove(string(key))
-	//ckv.cache.Set(string(key), nil)
+	ckv.cache.Delete(string(key))
 	ckv.CommitKVStore.Delete(key)
 }
 

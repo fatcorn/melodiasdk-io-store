@@ -74,7 +74,7 @@ func NewCommitKVStoreCacheManager(size uint) *CommitKVStoreCacheManager {
 func (cmgr *CommitKVStoreCacheManager) GetStoreCache(key types.StoreKey, store types.CommitKVStore) types.CommitKVStore {
 	if cmgr.caches[key.Name()] == nil {
 		cache := os.Getenv("cache")
-		if cache != "" {
+		if cache == "" {
 			cmgr.caches[key.Name()] = NewCommitKVStoreBigCache(store, cmgr.cacheSize)
 		} else {
 			cmgr.caches[key.Name()] = NewCommitKVStoreCache(store, cmgr.cacheSize)
@@ -89,12 +89,10 @@ func (cmgr *CommitKVStoreCacheManager) GetStoreCache(key types.StoreKey, store t
 func (cmgr *CommitKVStoreCacheManager) Unwrap(key types.StoreKey) types.CommitKVStore {
 	if ckv, ok := cmgr.caches[key.Name()]; ok {
 		cache := os.Getenv("cache")
-		if cache != "" {
+		if cache == "" {
 			return ckv.(*CommitKVStoreBigCache).CommitKVStore
-
 		} else {
 			return ckv.(*CommitKVStoreCache).CommitKVStore
-
 		}
 	}
 
