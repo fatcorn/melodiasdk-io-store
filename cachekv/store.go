@@ -164,7 +164,7 @@ func (store *Store) Write() {
 		workerCtx, cancel := context.WithCancel(context.TODO())
 		defer cancel()
 
-		store.startVal(workerCtx, store.writeCh, 8)
+		store.startVal(workerCtx, store.writeCh, 96)
 		for _, obj := range sortedCache {
 			wg.Add(1)
 			tmp := obj
