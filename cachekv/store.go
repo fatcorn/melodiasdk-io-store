@@ -2,6 +2,7 @@ package cachekv
 
 import (
 	"bytes"
+	"context"
 	"cosmossdk.io/store/cachekv/internal"
 	"cosmossdk.io/store/internal/conv"
 	"cosmossdk.io/store/internal/kv"
@@ -32,6 +33,7 @@ type Store struct {
 	unsortedCache *sync.Map
 	sortedCache   internal.BTree // always ascending sorted
 	parent        types.KVStore
+	writeCh       chan func()
 }
 
 var _ types.CacheKVStore = (*Store)(nil)
@@ -158,10 +160,15 @@ func (store *Store) Write() {
 	t1 := time.Now()
 	if (getType.String() == "*cache.CommitKVStoreBigCache" || getType.String() == "*cache.CommitKVStoreCache") && len(sortedCache) > 0 {
 		wg := &sync.WaitGroup{}
+		store.writeCh = make(chan func(), len(sortedCache))
+		workerCtx, cancel := context.WithCancel(context.TODO())
+		defer cancel()
+
+		store.startVal(workerCtx, store.writeCh, 8)
 		for _, obj := range sortedCache {
 			wg.Add(1)
 			tmp := obj
-			go func() {
+			store.DoWrite(func() {
 				defer wg.Done()
 				// We use []byte(key) instead of conv.UnsafeStrToBytes because we cannot
 				// be sure if the underlying store might do a save with the byteslice or
@@ -173,7 +180,7 @@ func (store *Store) Write() {
 				} else {
 					store.parent.Delete([]byte(tmp.key))
 				}
-			}()
+			})
 		}
 		wg.Wait()
 	} else {
@@ -190,25 +197,31 @@ func (store *Store) Write() {
 			}
 		}
 	}
-	//for _, obj := range sortedCache {
-	//	// We use []byte(key) instead of conv.UnsafeStrToBytes because we cannot
-	//	// be sure if the underlying store might do a save with the byteslice or
-	//	// not. Once we get confirmation that .Delete is guaranteed not to
-	//	// save the byteslice, then we can assume only a read-only copy is sufficient.
-	//
-	//	if obj.val.value != nil {
-	//		// It already exists in the parent, hence update it.
-	//		store.parent.Set([]byte(obj.key), obj.val.value)
-	//	} else {
-	//		store.parent.Delete([]byte(obj.key))
-	//	}
-	//}
 
 	t2 := time.Now()
 	if (getType.String() == "*cache.CommitKVStoreBigCache" || getType.String() == "*cache.CommitKVStoreCache") && len(sortedCache) > 0 {
 		println("store cache==============", "total", len(sortedCache), "set time", t2.Sub(t1).String(), "type", getType.String())
 	}
 
+}
+
+func (s *Store) startVal(ctx context.Context, ch chan func(), workers int) {
+	for i := 0; i < workers; i++ {
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case work := <-ch:
+					work()
+				}
+			}
+		}()
+	}
+}
+
+func (s *Store) DoWrite(work func()) {
+	s.writeCh <- work
 }
 
 // CacheWrap implements CacheWrapper.
