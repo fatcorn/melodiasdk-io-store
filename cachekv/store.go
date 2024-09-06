@@ -206,7 +206,7 @@ func (store *Store) Write() {
 
 	t2 := time.Now()
 	if (getType.String() == "*cache.CommitKVStoreBigCache" || getType.String() == "*cache.CommitKVStoreCache") && len(sortedCache) > 0 {
-		println("store cache==============", "total", len(sortedCache)., "set time", t2.Sub(t1).String(), "type", getType.String())
+		println("store cache==============", "total", len(sortedCache), "set time", t2.Sub(t1).String(), "type", getType.String())
 	}
 
 }
