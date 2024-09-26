@@ -1236,6 +1236,7 @@ func (rs *Store) RollbackToVersion(target int64) error {
 	}
 
 	for key, store := range rs.stores {
+		println("roll ack to version", "key", key.Name())
 		if store.GetStoreType() == types.StoreTypeIAVL {
 			// If the store is wrapped with an inter-block cache, we must first unwrap
 			// it to get the underlying IAVL store.
@@ -1248,8 +1249,10 @@ func (rs *Store) RollbackToVersion(target int64) error {
 
 		}
 	}
+	println("roll ack to version end", "version", target)
 
 	rs.flushMetadata(rs.db, target, rs.buildCommitInfo(target))
+	println("roll ack to version end1", "version", target)
 
 	return rs.LoadLatestVersion()
 }
