@@ -641,7 +641,6 @@ func (rs *Store) WorkingHash() []byte {
 				},
 			}
 
-			println("height=", rs.commitHeader.Height, "key=", key.Name(), "hash=", fmt.Sprintf("%X", store.WorkingHash()))
 			storeInfos = append(storeInfos, si)
 		}
 	}
