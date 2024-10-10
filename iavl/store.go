@@ -6,11 +6,6 @@ import (
 	"io"
 	"sync"
 
-	cmtprotocrypto "github.com/cometbft/cometbft/proto/tendermint/crypto"
-	dbm "github.com/cosmos/cosmos-db"
-	"github.com/cosmos/iavl"
-	ics23 "github.com/cosmos/ics23/go"
-
 	errorsmod "cosmossdk.io/errors"
 	"cosmossdk.io/log"
 	"cosmossdk.io/store/cachekv"
@@ -19,6 +14,9 @@ import (
 	pruningtypes "cosmossdk.io/store/pruning/types"
 	"cosmossdk.io/store/tracekv"
 	"cosmossdk.io/store/types"
+	cmtprotocrypto "github.com/cometbft/cometbft/proto/tendermint/crypto"
+	dbm "github.com/cosmos/cosmos-db"
+	"github.com/cosmos/iavl"
 )
 
 const (
@@ -44,16 +42,28 @@ type Store struct {
 // LoadStore returns an IAVL Store as a CommitKVStore. Internally, it will load the
 // store's version (id) from the provided DB. An error is returned if the version
 // fails to load, or if called with a positive version on an empty tree.
-func LoadStore(db dbm.DB, logger log.Logger, key types.StoreKey, id types.CommitID, cacheSize int, disableFastNode bool, metrics metrics.StoreMetrics) (types.CommitKVStore, error) {
-	return LoadStoreWithInitialVersion(db, logger, key, id, 0, cacheSize, disableFastNode, metrics)
+func LoadStore(db dbm.DB, logger log.Logger, key types.StoreKey, id types.CommitID, lazyLoading bool, cacheSize int, disableFastNode bool, orphanConfig *iavl.Options) (types.CommitKVStore, error) {
+	return LoadStoreWithInitialVersion(db, logger, key, id, lazyLoading, 0, cacheSize, disableFastNode, orphanConfig)
 }
 
 // LoadStoreWithInitialVersion returns an IAVL Store as a CommitKVStore setting its initialVersion
 // to the one given. Internally, it will load the store's version (id) from the
 // provided DB. An error is returned if the version fails to load, or if called with a positive
 // version on an empty tree.
-func LoadStoreWithInitialVersion(db dbm.DB, logger log.Logger, key types.StoreKey, id types.CommitID, initialVersion uint64, cacheSize int, disableFastNode bool, metrics metrics.StoreMetrics) (types.CommitKVStore, error) {
-	tree := iavl.NewMutableTree(db, cacheSize, disableFastNode, logger, iavl.InitialVersionOption(initialVersion))
+func LoadStoreWithInitialVersion(db dbm.DB, logger log.Logger, key types.StoreKey, id types.CommitID, lazyLoading bool, initialVersion uint64, cacheSize int, disableFastNode bool, orphanConfig *iavl.Options) (types.CommitKVStore, error) {
+	opts := iavl.Options{
+		InitialVersion: initialVersion,
+		Sync:           false,
+	}
+	if orphanConfig != nil {
+		opts.SeparateOrphanStorage = orphanConfig.SeparateOrphanStorage
+		opts.SeparateOphanVersionsToKeep = orphanConfig.SeparateOphanVersionsToKeep
+		opts.OrphanDirectory = orphanConfig.OrphanDirectory
+	}
+	tree, err := iavl.NewMutableTreeWithOpts(nil, cacheSize, &opts, disableFastNode)
+	if err != nil {
+		return nil, err
+	}
 
 	isUpgradeable, err := tree.IsUpgradeable()
 	if err != nil {
@@ -66,10 +76,16 @@ func LoadStoreWithInitialVersion(db dbm.DB, logger log.Logger, key types.StoreKe
 			"store_key", key.String(),
 			"version", initialVersion,
 			"commit", fmt.Sprintf("%X", id),
+			"is_lazy", lazyLoading,
 		)
 	}
 
-	_, err = tree.LoadVersion(id.Version)
+	if lazyLoading {
+		_, err = tree.LazyLoadVersion(id.Version)
+	} else {
+		_, err = tree.LoadVersion(id.Version)
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -79,12 +95,56 @@ func LoadStoreWithInitialVersion(db dbm.DB, logger log.Logger, key types.StoreKe
 	}
 
 	return &Store{
-		tree:    tree,
-		logger:  logger,
-		metrics: metrics,
+		//tree:    tree,
 		treeMtx: &sync.RWMutex{},
 	}, nil
 }
+
+//
+//// LoadStore returns an IAVL Store as a CommitKVStore. Internally, it will load the
+//// store's version (id) from the provided DB. An error is returned if the version
+//// fails to load, or if called with a positive version on an empty tree.
+//func LoadStore(db dbm.DB, logger log.Logger, key types.StoreKey, id types.CommitID, cacheSize int, disableFastNode bool, metrics metrics.StoreMetrics) (types.CommitKVStore, error) {
+//	return LoadStoreWithInitialVersion(db, logger, key, id, 0, cacheSize, disableFastNode, metrics)
+//}
+//
+//// LoadStoreWithInitialVersion returns an IAVL Store as a CommitKVStore setting its initialVersion
+//// to the one given. Internally, it will load the store's version (id) from the
+//// provided DB. An error is returned if the version fails to load, or if called with a positive
+//// version on an empty tree.
+//func LoadStoreWithInitialVersion(db dbm.DB, logger log.Logger, key types.StoreKey, id types.CommitID, initialVersion uint64, cacheSize int, disableFastNode bool, metrics metrics.StoreMetrics) (types.CommitKVStore, error) {
+//	tree := iavl.NewMutableTree(db, cacheSize, disableFastNode, logger, iavl.InitialVersionOption(initialVersion))
+//
+//	isUpgradeable, err := tree.IsUpgradeable()
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	if isUpgradeable && logger != nil {
+//		logger.Info(
+//			"Upgrading IAVL storage for faster queries + execution on live state. This may take a while",
+//			"store_key", key.String(),
+//			"version", initialVersion,
+//			"commit", fmt.Sprintf("%X", id),
+//		)
+//	}
+//
+//	_, err = tree.LoadVersion(id.Version)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	if logger != nil {
+//		logger.Debug("Finished loading IAVL tree")
+//	}
+//
+//	return &Store{
+//		tree:    tree,
+//		logger:  logger,
+//		metrics: metrics,
+//		treeMtx: &sync.RWMutex{},
+//	}, nil
+//}
 
 // UnsafeNewStore returns a reference to a new IAVL Store with a given mutable
 // IAVL tree reference. It should only be used for testing purposes.
@@ -94,7 +154,7 @@ func LoadStoreWithInitialVersion(db dbm.DB, logger log.Logger, key types.StoreKe
 // passed into iavl.MutableTree
 func UnsafeNewStore(tree *iavl.MutableTree) *Store {
 	return &Store{
-		tree:    tree,
+		//tree:    tree,
 		metrics: metrics.NewNoOpMetrics(),
 		treeMtx: &sync.RWMutex{},
 	}
@@ -149,14 +209,14 @@ func (st *Store) ResetCache()   {}
 
 // WorkingHash returns the hash of the current working tree.
 func (st *Store) WorkingHash() []byte {
-	return st.tree.WorkingHash()
+	return nil
 }
 
 // LastCommitID implements Committer.
 func (st *Store) LastCommitID() types.CommitID {
 	return types.CommitID{
 		Version: st.tree.Version(),
-		Hash:    st.tree.Hash(),
+		Hash:    nil,
 	}
 }
 
@@ -241,7 +301,7 @@ func (st *Store) Delete(key []byte) {
 // is returned if any single version is invalid or the delete fails. All writes
 // happen in a single batch with a single commit.
 func (st *Store) DeleteVersionsTo(version int64) error {
-	return st.tree.DeleteVersionsTo(version)
+	return st.tree.DeleteVersion(version)
 }
 
 // LoadVersionForOverwriting attempts to load a tree at a previously committed
@@ -290,16 +350,16 @@ func (st *Store) Export(version int64) (*iavl.Exporter, error) {
 	if !ok || tree == nil {
 		return nil, fmt.Errorf("iavl export failed: unable to fetch tree for version %v", version)
 	}
-	return tree.Export()
+	return nil, nil
 }
 
 // Import imports an IAVL tree at the given version, returning an iavl.Importer for importing.
 func (st *Store) Import(version int64) (*iavl.Importer, error) {
-	tree, ok := st.tree.(*iavl.MutableTree)
-	if !ok {
-		return nil, errors.New("iavl import failed: unable to find mutable tree")
-	}
-	return tree.Import(version)
+	//tree, ok := st.tree.(*iavl.MutableTree)
+	//if !ok {
+	//	return nil, errors.New("iavl import failed: unable to find mutable tree")
+	//}
+	return nil, nil
 }
 
 // Handle gatest the latest height, if height is 0
@@ -360,13 +420,13 @@ func (st *Store) Query(req *types.RequestQuery) (res *types.ResponseQuery, err e
 
 		// Continue to prove existence/absence of value
 		// Must convert store.Tree to iavl.MutableTree with given version to use in CreateProof
-		iTree, err := tree.GetImmutable(res.Height)
+		//iTree, err := tree.GetImmutable(res.Height)
 		if err != nil {
 			// sanity check: If value for given version was retrieved, immutable tree must also be retrievable
 			panic(fmt.Sprintf("version exists in store but could not retrieve corresponding versioned tree in store, %s", err.Error()))
 		}
 		mtree := &iavl.MutableTree{
-			ImmutableTree: iTree,
+			//ImmutableTree: iTree,
 		}
 
 		// get proof from tree and convert to merkle.Proof before adding to result
@@ -434,26 +494,26 @@ func (st *Store) TraverseStateChanges(startVersion, endVersion int64, fn func(ve
 // Thus, it will panic on error rather than returning it
 func getProofFromTree(tree *iavl.MutableTree, key []byte, exists bool) *cmtprotocrypto.ProofOps {
 	var (
-		commitmentProof *ics23.CommitmentProof
-		err             error
+	//commitmentProof *ics23.CommitmentProof
+	//err             error
 	)
 
 	if exists {
 		// value was found
-		commitmentProof, err = tree.GetMembershipProof(key)
-		if err != nil {
-			// sanity check: If value was found, membership proof must be creatable
-			panic(fmt.Sprintf("unexpected value for empty proof: %s", err.Error()))
-		}
+		//commitmentProof, err = tree.GetMembershipProof(key)
+		//if err != nil {
+		//	// sanity check: If value was found, membership proof must be creatable
+		//	panic(fmt.Sprintf("unexpected value for empty proof: %s", err.Error()))
+		//}
 	} else {
 		// value wasn't found
-		commitmentProof, err = tree.GetNonMembershipProof(key)
-		if err != nil {
-			// sanity check: If value wasn't found, nonmembership proof must be creatable
-			panic(fmt.Sprintf("unexpected error for nonexistence proof: %s", err.Error()))
-		}
+		//commitmentProof, err = tree.GetNonMembershipProof(key)
+		//if err != nil {
+		//	// sanity check: If value wasn't found, nonmembership proof must be creatable
+		//	panic(fmt.Sprintf("unexpected error for nonexistence proof: %s", err.Error()))
+		//}
 	}
 
-	op := types.NewIavlCommitmentOp(key, commitmentProof)
-	return &cmtprotocrypto.ProofOps{Ops: []cmtprotocrypto.ProofOp{op.ProofOp()}}
+	//op := types.NewIavlCommitmentOp(key, commitmentProof)
+	return nil
 }

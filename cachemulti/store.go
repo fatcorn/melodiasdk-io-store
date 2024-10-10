@@ -29,6 +29,7 @@ type Store struct {
 
 	traceWriter  io.Writer
 	traceContext types.TraceContext
+	closers      []io.Closer
 }
 
 var _ types.CacheMultiStore = Store{}
@@ -46,6 +47,7 @@ func NewFromKVStore(
 		keys:         keys,
 		traceWriter:  traceWriter,
 		traceContext: traceContext,
+		closers:      []io.Closer{},
 	}
 
 	for key, store := range stores {
@@ -76,7 +78,6 @@ func newCacheMultiStoreFromCMS(cms Store) Store {
 	for k, v := range cms.stores {
 		stores[k] = v
 	}
-
 	return NewFromKVStore(cms.db, stores, cms.keys, cms.traceWriter, cms.traceContext)
 }
 
@@ -184,4 +185,8 @@ func (cms Store) SetKVStores(handler func(sk types.StoreKey, s types.KVStore) ty
 		cms.stores[k] = handler(k, s.(types.KVStore))
 	}
 	return cms
+}
+
+func (cms Store) AddCloser(closer io.Closer) {
+	cms.closers = append(cms.closers, closer)
 }

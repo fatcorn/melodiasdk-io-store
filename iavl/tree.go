@@ -10,7 +10,7 @@ import (
 
 var (
 	_ Tree = (*immutableTree)(nil)
-	_ Tree = (*iavl.MutableTree)(nil)
+	//_ Tree = (*iavl.MutableTree)(nil)
 )
 
 type (
@@ -25,10 +25,10 @@ type (
 		Remove(key []byte) ([]byte, bool, error)
 		SaveVersion() ([]byte, int64, error)
 		Version() int64
-		Hash() []byte
-		WorkingHash() []byte
+		Hash() ([]byte, error)
+		WorkingHash() ([]byte, error)
 		VersionExists(version int64) bool
-		DeleteVersionsTo(version int64) error
+		DeleteVersion(version int64) error
 		GetVersioned(key []byte, version int64) ([]byte, error)
 		GetImmutable(version int64) (*iavl.ImmutableTree, error)
 		SetInitialVersion(version uint64)
@@ -45,6 +45,24 @@ type (
 		*iavl.ImmutableTree
 	}
 )
+
+func (it *immutableTree) DeleteVersion(_ int64) error {
+	panic("cannot call 'DeleteVersion' on an immutable IAVL tree")
+}
+func (it *immutableTree) WorkingHash() ([]byte, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (it *immutableTree) Iterator(start, end []byte, ascending bool) (types.Iterator, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (it *immutableTree) TraverseStateChanges(startVersion, endVersion int64, fn func(version int64, changeSet *iavl.ChangeSet) error) error {
+	//TODO implement me
+	panic("implement me")
+}
 
 func (it *immutableTree) Set(_, _ []byte) (bool, error) {
 	panic("cannot call 'Set' on an immutable IAVL tree")
@@ -92,8 +110,4 @@ func (it *immutableTree) AvailableVersions() []int {
 
 func (it *immutableTree) LoadVersionForOverwriting(targetVersion int64) error {
 	panic("cannot call 'LoadVersionForOverwriting' on an immutable IAVL tree")
-}
-
-func (it *immutableTree) WorkingHash() []byte {
-	panic("cannot call 'WorkingHash' on an immutable IAVL tree")
 }

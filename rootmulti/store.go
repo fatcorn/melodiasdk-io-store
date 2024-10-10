@@ -640,7 +640,6 @@ func (rs *Store) WorkingHash() []byte {
 					Hash: store.WorkingHash(),
 				},
 			}
-
 			storeInfos = append(storeInfos, si)
 		}
 	}
@@ -1029,7 +1028,7 @@ func (rs *Store) Snapshot(height uint64, protoWriter protoio.Writer) error {
 			nodeCount := 0
 			for {
 				node, err := exporter.Next()
-				if err == iavltree.ErrorExportDone {
+				if err == iavltree.ErrInvalidInputs {
 					rs.logger.Debug("snapshot Done", "store", store.name, "nodeCount", nodeCount)
 					break
 				} else if err != nil {
@@ -1167,9 +1166,9 @@ func (rs *Store) loadCommitStoreFromParams(key types.StoreKey, id types.CommitID
 		var err error
 
 		if params.initialVersion == 0 {
-			store, err = iavl.LoadStore(db, rs.logger, key, id, rs.iavlCacheSize, rs.iavlDisableFastNode, rs.metrics)
+			//store, err = iavl.LoadStore(db, rs.logger, key, id, rs.iavlCacheSize, rs.iavlDisableFastNode, rs.metrics)
 		} else {
-			store, err = iavl.LoadStoreWithInitialVersion(db, rs.logger, key, id, params.initialVersion, rs.iavlCacheSize, rs.iavlDisableFastNode, rs.metrics)
+			//store, err = iavl.LoadStoreWithInitialVersion(db, rs.logger, key, id, params.initialVersion, rs.iavlCacheSize, rs.iavlDisableFastNode, rs.metrics)
 		}
 
 		if err != nil {
@@ -1247,6 +1246,7 @@ func (rs *Store) RollbackToVersion(target int64) error {
 
 		}
 	}
+
 	rs.flushMetadata(rs.db, target, rs.buildCommitInfo(target))
 
 	return rs.LoadLatestVersion()
