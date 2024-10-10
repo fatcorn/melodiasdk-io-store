@@ -5,7 +5,8 @@ import (
 )
 
 var (
-	ErrReadEstimate = errors.New("multiversion store value contains estimate, cannot read, aborting")
+	ErrReadEstimate      = errors.New("multiversion store value contains estimate, cannot read, aborting")
+	ErrNextAccountNumber = errors.New("next account number, cannot asynchronous, aborting")
 )
 
 // Abort contains the information for a transaction's conflict
@@ -18,5 +19,11 @@ func NewEstimateAbort(dependentTxIdx int) Abort {
 	return Abort{
 		DependentTxIdx: dependentTxIdx,
 		Err:            ErrReadEstimate,
+	}
+}
+func NewErrNextAccountNumber(dependentTxIdx int) Abort {
+	return Abort{
+		DependentTxIdx: dependentTxIdx,
+		Err:            ErrNextAccountNumber,
 	}
 }
