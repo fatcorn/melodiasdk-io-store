@@ -12,7 +12,6 @@ import (
 	"cosmossdk.io/store/types"
 
 	scheduler "cosmossdk.io/store/types/occ"
-	"encoding/hex"
 )
 
 // exposes a handler for adding items to readset, useful for iterators
@@ -154,7 +153,7 @@ func (store *VersionIndexedStore) Get(key []byte) []byte {
 
 	types.AssertValidKey(key)
 	strKey := string(key)
-	keyHex := hex.EncodeToString(key)
+	//keyHex := hex.EncodeToString(key)
 	// first check the MVKV writeset, and return that value if present
 	cacheValue, ok := store.Writeset[strKey]
 	if ok {
