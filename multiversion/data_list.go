@@ -59,25 +59,40 @@ func (m multiVersionListItem) GetLatestBeforeIndex(index int) (value MultiVersio
 
 func (m multiVersionListItem) Set(index int, incarnation int, value []byte) {
 	types.AssertValidValue(value)
+	if index >= len(m.valueList) {
+		index = len(m.valueList) - 1
+	}
 	valueItem := NewValueItem(index, incarnation, value)
 	m.setCommonValue(index, incarnation, valueItem)
 }
 
 func (m multiVersionListItem) SetEstimate(index int, incarnation int) {
+	if index >= len(m.valueList) {
+		index = len(m.valueList) - 1
+	}
 	estimateItem := NewEstimateItem(index, incarnation)
 	m.setCommonValue(index, incarnation, estimateItem)
 }
 
 func (m multiVersionListItem) setCommonValue(index int, incarnation int, valueItem MultiVersionValueItem) {
+	if index >= len(m.valueList) {
+		index = len(m.valueList) - 1
+	}
 	m.valueList[index] = valueItem
 
 }
 
 func (m multiVersionListItem) Delete(index int, incarnation int) {
+	if index >= len(m.valueList) {
+		index = len(m.valueList) - 1
+	}
 	deletedItem := NewDeletedItem(index, incarnation)
 	m.setCommonValue(index, incarnation, deletedItem)
 }
 
 func (m multiVersionListItem) Remove(index int) {
+	if index >= len(m.valueList) {
+		index = len(m.valueList) - 1
+	}
 	m.valueList[index] = nil
 }

@@ -29,6 +29,7 @@ require (
 
 require (
 	github.com/allegro/bigcache v1.2.1
+	github.com/confio/ics23/go v0.9.0
 	github.com/cosmos/cosmos-sdk v0.50.9
 	github.com/google/btree v1.1.2
 	github.com/hashicorp/golang-lru v1.0.2
@@ -43,6 +44,7 @@ require (
 	github.com/DataDog/zstd v1.5.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.3.2 // indirect
+	github.com/celestiaorg/nmt v0.20.0 // indirect
 	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cockroachdb/errors v1.11.1 // indirect
@@ -50,7 +52,6 @@ require (
 	github.com/cockroachdb/pebble v1.1.0 // indirect
 	github.com/cockroachdb/redact v1.1.5 // indirect
 	github.com/cockroachdb/tokenbucket v0.0.0-20230807174530-cc333fc44b06 // indirect
-	github.com/confio/ics23/go v0.9.0 // indirect
 	github.com/cosmos/cosmos-proto v1.0.0-beta.5 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0 // indirect
@@ -70,6 +71,7 @@ require (
 	github.com/hashicorp/yamux v0.1.1 // indirect
 	github.com/iancoleman/strcase v0.3.0 // indirect
 	github.com/jmhodges/levigo v1.0.0 // indirect
+	github.com/kilic/bls12-381 v0.1.1-0.20210208205449-6045b0235e36 // indirect
 	github.com/klauspost/compress v1.17.7 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
@@ -106,7 +108,7 @@ require (
 
 )
 
-replace github.com/cometbft/cometbft v0.38.0 => git.everylink.ai/blockchain/hotbeat-consensus v0.38.7-0.20240711014858-1cf7a15cddfd
+replace github.com/cometbft/cometbft => git.everylink.ai/blockchain/hotbeat-consensus v0.38.7-0.20240904020119-bd7a9b549349
 
 replace github.com/cosmos/iavl => github.com/sei-protocol/sei-iavl v0.1.9
 

@@ -72,13 +72,16 @@ func (s *ListStore) GetLatest(key []byte) (value MultiVersionValueItem) {
 	return latestVal
 }
 
-func (s *ListStore) NewKey(key string, totalTask int) {
+func (s *ListStore) NewKey(key string, totalTask int, value MultiVersionValue) {
 	_, found := s.multiVersionMap[key]
 	if !found {
 		versionList := os.Getenv("versionList")
 		if versionList != "" {
-			item := NewMultiVersionListItem(totalTask)
-			s.multiVersionMap[key] = item
+			if value == nil {
+				value = NewMultiVersionListItem(totalTask)
+
+			}
+			s.multiVersionMap[key] = value
 		} else {
 			item := NewMultiVersionItem()
 			s.multiVersionMap[key] = item
@@ -391,7 +394,7 @@ func (s *ListStore) checkReadsetAtIndex(index int) (bool, []int) {
 				}
 			} else if !bytes.Equal(latestValue.Value(), value) {
 				conflictSet[latestValue.Index()] = struct{}{}
-				fmt.Println("3key:", hexKey, "latestValue:", hex.EncodeToString(latestValue.Value()), "value:", hex.EncodeToString(value))
+				fmt.Println("3key:", hexKey, "latestValue:", hex.EncodeToString(latestValue.Value()), "index", latestValue.Index(), "value:", hex.EncodeToString(value))
 				valid = false
 			}
 		}

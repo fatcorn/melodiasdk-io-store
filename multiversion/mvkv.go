@@ -12,6 +12,7 @@ import (
 	"cosmossdk.io/store/types"
 
 	scheduler "cosmossdk.io/store/types/occ"
+	"encoding/hex"
 )
 
 // exposes a handler for adding items to readset, useful for iterators
@@ -79,7 +80,7 @@ type VersionIndexedStore struct {
 	// used for tracking reads and writes for eventual validation + persistence into multi-version store
 	// TODO: does this need sync.Map?
 	readset    map[string][][]byte // contains the key -> []value mapping for all keys read from the store (not mvkv, underlying store)
-	writeset   map[string][]byte   // contains the key -> value mapping for all keys written to the store
+	Writeset   map[string][]byte   // contains the key -> value mapping for all keys written to the store
 	iterateset Iterateset
 	// TODO: need to add iterateset here as well
 
@@ -109,7 +110,7 @@ var _ IterateSetHandler = (*VersionIndexedStore)(nil)
 func NewVersionIndexedStore(parent types.KVStore, multiVersionStore MultiVersionStore, transactionIndex, incarnation int, abortChannel chan scheduler.Abort, totalTask int) *VersionIndexedStore {
 	return &VersionIndexedStore{
 		readset:    make(map[string][][]byte),
-		writeset:   make(map[string][]byte),
+		Writeset:   make(map[string][]byte),
 		iterateset: []*iterationTracker{},
 		//sortedStore:       dbm.NewMemDB(),
 		parent:            parent,
@@ -128,7 +129,7 @@ func (store *VersionIndexedStore) GetReadset() map[string][][]byte {
 
 // GetWriteset returns the writeset
 func (store *VersionIndexedStore) GetWriteset() map[string][]byte {
-	return store.writeset
+	return store.Writeset
 }
 
 // WriteAbort writes an abort to the store but only allows one abort to be written PER instance of mvkv. This is because we pair abort channel writes with panics, and if we hit this more than once, it means that the panic was swallowed, so we won't write any aborts after a first abort is written to prevent any potential for deadlocking due to full channels
@@ -153,9 +154,9 @@ func (store *VersionIndexedStore) Get(key []byte) []byte {
 
 	types.AssertValidKey(key)
 	strKey := string(key)
-	//keyHex := hex.EncodeToString(key)
+	keyHex := hex.EncodeToString(key)
 	// first check the MVKV writeset, and return that value if present
-	cacheValue, ok := store.writeset[strKey]
+	cacheValue, ok := store.Writeset[strKey]
 	if ok {
 		// return the value from the cache, no need to update any readset stuff
 		return cacheValue
@@ -300,7 +301,7 @@ func (store *VersionIndexedStore) iterator(start []byte, end []byte, ascending b
 
 	// TODO: ideally we persist writeset keys into a sorted btree for later use
 	// make a set of total keys across mvkv and mvs to iterate
-	for key := range store.writeset {
+	for key := range store.Writeset {
 		memDB.Set([]byte(key), []byte{})
 	}
 	// also add readset elements such that they fetch from readset instead of parent
@@ -321,7 +322,7 @@ func (store *VersionIndexedStore) iterator(start []byte, end []byte, ascending b
 
 	mergeIterator := NewMVSMergeIterator(parent, memIterator, ascending, store)
 
-	iterationTracker := NewIterationTracker(start, end, ascending, store.writeset)
+	iterationTracker := NewIterationTracker(start, end, ascending, store.Writeset)
 	store.UpdateIterateSet(&iterationTracker)
 	trackedIterator := NewTrackedIterator(mergeIterator, &iterationTracker)
 
@@ -380,10 +381,10 @@ func (store *VersionIndexedStore) setValue(key, value []byte) {
 	types.AssertValidKey(key)
 
 	keyStr := string(key)
-	store.writeset[keyStr] = value
+	store.Writeset[keyStr] = value
 }
-func (store *VersionIndexedStore) NewKey(key string, totalTask int) {
-	store.multiVersionStore.NewKey(key, totalTask)
+func (store *VersionIndexedStore) NewKey(key string, totalTask int, value MultiVersionValue) {
+	store.multiVersionStore.NewKey(key, totalTask, value)
 }
 
 func (store *VersionIndexedStore) WriteToMultiVersionStore() {
@@ -391,7 +392,7 @@ func (store *VersionIndexedStore) WriteToMultiVersionStore() {
 	// store.mtx.Lock()
 	// defer store.mtx.Unlock()
 	// defer telemetry.MeasureSince(time.Now(), "store", "mvkv", "write_mvs")
-	store.multiVersionStore.SetWriteset(store.transactionIndex, store.incarnation, store.writeset, store.totalTask)
+	store.multiVersionStore.SetWriteset(store.transactionIndex, store.incarnation, store.Writeset, store.totalTask)
 	store.multiVersionStore.SetReadset(store.transactionIndex, store.readset)
 	store.multiVersionStore.SetIterateset(store.transactionIndex, store.iterateset)
 }
@@ -401,7 +402,7 @@ func (store *VersionIndexedStore) WriteEstimatesToMultiVersionStore() {
 	// store.mtx.Lock()
 	// defer store.mtx.Unlock()
 	// defer telemetry.MeasureSince(time.Now(), "store", "mvkv", "write_mvs")
-	store.multiVersionStore.SetEstimatedWriteset(store.transactionIndex, store.incarnation, store.writeset)
+	store.multiVersionStore.SetEstimatedWriteset(store.transactionIndex, store.incarnation, store.Writeset)
 	// TODO: do we need to write readset and iterateset in this case? I don't think so since if this is called it means we aren't doing validation
 }
 
