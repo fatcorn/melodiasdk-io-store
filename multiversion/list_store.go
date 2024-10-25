@@ -10,6 +10,7 @@ import (
 	db "github.com/cosmos/cosmos-db"
 	"os"
 	"sort"
+	"sync"
 )
 
 type VersionStoreIndexKeys struct {
@@ -34,6 +35,8 @@ type ListStore struct {
 	keysList []VersionStoreIndexKeys
 
 	parentStore types.KVStore
+	versionList bool
+	mu          sync.Mutex
 }
 
 func NewMultiVersionListStore(parentStore types.KVStore, totalTask int) *ListStore {
@@ -42,12 +45,19 @@ func NewMultiVersionListStore(parentStore types.KVStore, totalTask int) *ListSto
 	//if err != nil {
 	//	panic(fmt.Errorf("failed to create KVStore cache: %s", err))
 	//}
+	versionListEnv := os.Getenv("versionList")
+	versionList := true
+	if versionListEnv == "" {
+		versionList = false
+	}
+
 	keysList := make([]VersionStoreIndexKeys, totalTask)
 	versionMap := make(map[string]any)
 	return &ListStore{
 		multiVersionMap: versionMap,
 		parentStore:     parentStore,
 		keysList:        keysList,
+		versionList:     versionList,
 	}
 }
 
@@ -73,20 +83,18 @@ func (s *ListStore) GetLatest(key []byte) (value MultiVersionValueItem) {
 }
 
 func (s *ListStore) NewKey(key string, totalTask int, value MultiVersionValue) {
-	_, found := s.multiVersionMap[key]
-	if !found {
-		versionList := os.Getenv("versionList")
-		if versionList != "" {
-			if value == nil {
-				value = NewMultiVersionListItem(totalTask)
-
-			}
-			s.multiVersionMap[key] = value
-		} else {
-			item := NewMultiVersionItem()
-			s.multiVersionMap[key] = item
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.versionList {
+		if value == nil {
+			value = NewMultiVersionListItem(totalTask)
 		}
+		s.multiVersionMap[key] = value
+	} else {
+		item := NewMultiVersionItem()
+		s.multiVersionMap[key] = item
 	}
+
 }
 
 //func (s *ListStore) LoadMultiVersion(key string) (value MultiVersionValue,f bool) {
