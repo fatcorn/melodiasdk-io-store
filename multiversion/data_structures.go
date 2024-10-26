@@ -15,6 +15,7 @@ type MultiVersionValue interface {
 	GetLatest() (value MultiVersionValueItem, found bool)
 	GetLatestNonEstimate() (value MultiVersionValueItem, found bool)
 	GetLatestBeforeIndex(index int) (value MultiVersionValueItem, found bool)
+	GetLatestBeforeIndexExpansion(index int) (value MultiVersionValueItem, found bool)
 	Set(index int, incarnation int, value []byte)
 	SetEstimate(index int, incarnation int)
 	Delete(index int, incarnation int)
@@ -98,6 +99,9 @@ func (item *multiVersionItem) GetLatestBeforeIndex(index int) (MultiVersionValue
 		return false
 	})
 	return vItem, found
+}
+func (item *multiVersionItem) GetLatestBeforeIndexExpansion(index int) (value MultiVersionValueItem, found bool) {
+	return item.GetLatestBeforeIndex(index)
 }
 
 func (item *multiVersionItem) Set(index int, incarnation int, value []byte) {

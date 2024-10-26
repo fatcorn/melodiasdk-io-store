@@ -17,6 +17,7 @@ type MultiVersionStore interface {
 	GetLatest(key []byte) (value MultiVersionValueItem)
 	NewKey(key string, totalTask int, value MultiVersionValue)
 	GetLatestBeforeIndex(index int, key []byte) (value MultiVersionValueItem)
+	GetLatestBeforeIndexExpansion(index int, key []byte) (value MultiVersionValueItem)
 	Has(index int, key []byte) bool
 	WriteLatestToStore()
 	SetWriteset(index int, incarnation int, writeset WriteSet, totalTask int)
@@ -97,6 +98,9 @@ func (s *Store) GetLatestBeforeIndex(index int, key []byte) (value MultiVersionV
 	}
 	// found a value prior to the passed in index, return that value (could be estimate OR deleted, but it is a definitive value)
 	return val
+}
+func (s *Store) GetLatestBeforeIndexExpansion(index int, key []byte) (value MultiVersionValueItem) {
+	return s.GetLatestBeforeIndex(index, key)
 }
 
 // Has implements MultiVersionStore. It checks if the key exists in the multiversion store at or before the specified index.

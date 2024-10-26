@@ -45,12 +45,31 @@ func (m multiVersionListItem) GetLatestNonEstimate() (value MultiVersionValueIte
 
 func (m multiVersionListItem) GetLatestBeforeIndex(index int) (value MultiVersionValueItem, found bool) {
 
+	newIndex := index
 	if index >= len(m.valueList) {
 		return nil, false
 	}
-	for i := index - 1; i >= 0; i-- {
+
+	for i := newIndex - 1; i >= 0; i-- {
 		incarnationValue := m.valueList[i]
-		if incarnationValue != nil {
+		if incarnationValue != nil && incarnationValue.Index() < index {
+			return incarnationValue, true
+		}
+	}
+	return nil, false
+}
+
+func (m *multiVersionListItem) GetLatestBeforeIndexExpansion(index int) (value MultiVersionValueItem, found bool) {
+
+	newIndex := index
+	if index >= len(m.valueList) {
+		m.valueList = append(m.valueList, make([]MultiVersionValueItem, (index+1-len(m.valueList))*2)...)
+	}
+
+	for i := newIndex - 1; i >= 0; i-- {
+		incarnationValue := m.valueList[i]
+
+		if incarnationValue != nil && incarnationValue.Index() < index {
 			return incarnationValue, true
 		}
 	}
@@ -59,17 +78,13 @@ func (m multiVersionListItem) GetLatestBeforeIndex(index int) (value MultiVersio
 
 func (m multiVersionListItem) Set(index int, incarnation int, value []byte) {
 	types.AssertValidValue(value)
-	if index >= len(m.valueList) {
-		index = len(m.valueList) - 1
-	}
+
 	valueItem := NewValueItem(index, incarnation, value)
 	m.setCommonValue(index, incarnation, valueItem)
 }
 
 func (m multiVersionListItem) SetEstimate(index int, incarnation int) {
-	if index >= len(m.valueList) {
-		index = len(m.valueList) - 1
-	}
+
 	estimateItem := NewEstimateItem(index, incarnation)
 	m.setCommonValue(index, incarnation, estimateItem)
 }

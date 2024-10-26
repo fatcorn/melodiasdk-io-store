@@ -10,7 +10,6 @@ import (
 	abci "github.com/cometbft/cometbft/abci/types"
 
 	"cosmossdk.io/store/types"
-
 	scheduler "cosmossdk.io/store/types/occ"
 )
 
@@ -167,7 +166,7 @@ func (store *VersionIndexedStore) Get(key []byte) []byte {
 	}
 
 	// if we didn't find it, then we want to check the multivalue store + add to readset if applicable
-	mvsValue := store.multiVersionStore.GetLatestBeforeIndex(store.transactionIndex, key)
+	mvsValue := store.multiVersionStore.GetLatestBeforeIndexExpansion(store.transactionIndex, key)
 	if mvsValue != nil {
 		if mvsValue.IsEstimate() {
 			abort := scheduler.NewEstimateAbort(mvsValue.Index())

@@ -85,16 +85,18 @@ func (s *ListStore) GetLatest(key []byte) (value MultiVersionValueItem) {
 func (s *ListStore) NewKey(key string, totalTask int, value MultiVersionValue) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.versionList {
-		if value == nil {
-			value = NewMultiVersionListItem(totalTask)
+	_, found := s.multiVersionMap[key]
+	if !found {
+		if s.versionList {
+			if value == nil {
+				value = NewMultiVersionListItem(totalTask)
+			}
+			s.multiVersionMap[key] = value
+		} else {
+			item := NewMultiVersionItem()
+			s.multiVersionMap[key] = item
 		}
-		s.multiVersionMap[key] = value
-	} else {
-		item := NewMultiVersionItem()
-		s.multiVersionMap[key] = item
 	}
-
 }
 
 //func (s *ListStore) LoadMultiVersion(key string) (value MultiVersionValue,f bool) {
@@ -120,6 +122,24 @@ func (s *ListStore) GetLatestBeforeIndex(index int, key []byte) (value MultiVers
 		return nil
 	}
 	val, found := mvVal.(MultiVersionValue).GetLatestBeforeIndex(index)
+	// otherwise, we may have found a value for that key, but its not written before the index passed in
+	if !found {
+		return nil
+	}
+	// found a value prior to the passed in index, return that value (could be estimate OR deleted, but it is a definitive value)
+	return val
+}
+
+// GetLatestBeforeIndex implements MultiVersionStore.
+func (s *ListStore) GetLatestBeforeIndexExpansion(index int, key []byte) (value MultiVersionValueItem) {
+	keyString := string(key)
+	mvVal, found := s.multiVersionMap[keyString]
+	// if the key doesn't exist in the overall map, return nil
+	if !found {
+		return nil
+	}
+	val, found := mvVal.(MultiVersionValue).GetLatestBeforeIndexExpansion(index)
+
 	// otherwise, we may have found a value for that key, but its not written before the index passed in
 	if !found {
 		return nil
@@ -385,7 +405,7 @@ func (s *ListStore) checkReadsetAtIndex(index int) (bool, []int) {
 			// this is possible if we previously read a value from a transaction write that was later reverted, so this time we read from parent store
 			parentVal := s.parentStore.Get([]byte(key))
 			if !bytes.Equal(parentVal, value) {
-				fmt.Println("1key:", hexKey, "parentVal:", parentVal, "value:", value)
+				fmt.Println("1key:", hexKey, "parentVal:", hex.EncodeToString(parentVal), "value:", hex.EncodeToString(value))
 				valid = false
 			}
 		} else {
