@@ -85,16 +85,22 @@ func (s *ListStore) GetLatest(key []byte) (value MultiVersionValueItem) {
 func (s *ListStore) NewKey(key string, totalTask int, value MultiVersionValue) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	_, found := s.multiVersionMap[key]
+	mvVal, found := s.multiVersionMap[key]
 	if !found {
 		if s.versionList {
 			if value == nil {
-				value = NewMultiVersionListItem(totalTask)
+				value = NewMultiVersionListItem(1)
 			}
 			s.multiVersionMap[key] = value
 		} else {
 			item := NewMultiVersionItem()
 			s.multiVersionMap[key] = item
+		}
+	} else {
+		//println("get new key find")
+		if len(mvVal.(*multiVersionListItem).valueList) == 1 {
+			value = NewMultiVersionListItem(totalTask)
+			s.multiVersionMap[key] = value
 		}
 	}
 }
