@@ -92,10 +92,10 @@ func (ckv *CommitKVStoreBigCache) Get(key []byte) []byte {
 
 	// cache miss; write to cache
 	value := ckv.CommitKVStore.Get(key)
-
-	if value != nil {
-		ckv.cache.Set(keyStr, value)
-	}
+	//
+	//if value != nil {
+	//	ckv.cache.Set(keyStr, value)
+	//}
 
 	return value
 }
@@ -106,12 +106,12 @@ func (ckv *CommitKVStoreBigCache) Set(key, value []byte) {
 	//ckv.mtx.Lock()
 	//defer ckv.mtx.Unlock()
 
-	types.AssertValidKey(key)
-	types.AssertValidValue(value)
+	//types.AssertValidKey(key)
+	//types.AssertValidValue(value)
 	//t1 := time.Now()
-	if value != nil {
-		ckv.cache.Set(string(key), value)
-	}
+	//if value != nil {
+	//	ckv.cache.Set(string(key), value)
+	//}
 	////t2 := time.Now()
 
 	ckv.CommitKVStore.Set(key, value)

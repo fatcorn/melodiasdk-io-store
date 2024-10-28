@@ -7,10 +7,8 @@ import (
 	"cosmossdk.io/store/internal/kv"
 	"cosmossdk.io/store/tracekv"
 	"cosmossdk.io/store/types"
-	"encoding/hex"
 	dbm "github.com/cosmos/cosmos-db"
 	"io"
-	"reflect"
 	"sort"
 	"sync"
 )
@@ -109,65 +107,27 @@ func (store *Store) Write() {
 		val *cValue
 	}
 
-	sortedCache := make([]cEntry, 0)
+	// at least happen atomically.
+	//sortedCache := make([]cEntry, 0)
+	total := 0
+	parentStore := store.parent
 
 	store.cache.Range(func(key, value any) bool {
 		if value.(*cValue).dirty {
-			sortedCache = append(sortedCache, cEntry{
-				key: key.(string),
-				val: value.(*cValue),
-			})
-		}
-		return true
-	})
-	//println("cache kv store", "sortedCache length", len(sortedCache))
-
-	// Iterate unsortedCache, if unsortedCache has more than 1 item, break.
-	unsortedCacheSize := 0
-	store.unsortedCache.Range(func(key, value any) bool {
-		unsortedCacheSize++
-		if unsortedCacheSize > 1 {
-			return false
+			if value.(*cValue).value != nil {
+				// It already exists in the parent, hence update it.
+				parentStore.Set([]byte(key.(string)), value.(*cValue).value)
+			} else {
+				parentStore.Delete([]byte(key.(string)))
+			}
+			total++
 		}
 		return true
 	})
 
-	if len(sortedCache) == 0 && unsortedCacheSize == 0 {
-		store.sortedCache = internal.NewBTree()
-		return
-	}
+	if total > 0 {
+		println("total =====", "", total)
 
-	// We need a copy of all of the keys.
-	// Not the best. To reduce RAM pressure, we copy the values as well
-	// and clear out the old caches right after the copy.
-	//sortedCache := make([]cEntry, 0, len(keys))
-	//
-	//for key, dbValue := range store.cache {
-	//	if dbValue.dirty {
-	//		sortedCache = append(sortedCache, cEntry{key, dbValue})
-	//	}
-	//}
-	store.resetCaches()
-	sort.Slice(sortedCache, func(i, j int) bool {
-		return sortedCache[i].key < sortedCache[j].key
-	})
-
-	// TODO: Consider allowing usage of Batch, which would allow the write to
-	// at least happen atomically.
-	for _, obj := range sortedCache {
-		// We use []byte(key) instead of conv.UnsafeStrToBytes because we cannot
-		// be sure if the underlying store might do a save with the byteslice or
-		// not. Once we get confirmation that .Delete is guaranteed not to
-		// save the byteslice, then we can assume only a read-only copy is sufficient.
-		getType := reflect.TypeOf(store.parent)
-
-		println("cache kv store write", "key", hex.EncodeToString([]byte(obj.key)), "value", hex.EncodeToString(obj.val.value), "getType.Name()", getType.String())
-		if obj.val.value != nil {
-			// It already exists in the parent, hence update it.
-			store.parent.Set([]byte(obj.key), obj.val.value)
-		} else {
-			store.parent.Delete([]byte(obj.key))
-		}
 	}
 }
 
