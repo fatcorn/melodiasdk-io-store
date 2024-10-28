@@ -7,8 +7,10 @@ import (
 	"cosmossdk.io/store/internal/kv"
 	"cosmossdk.io/store/tracekv"
 	"cosmossdk.io/store/types"
+	"encoding/hex"
 	dbm "github.com/cosmos/cosmos-db"
 	"io"
+	"reflect"
 	"sort"
 	"sync"
 )
@@ -157,9 +159,9 @@ func (store *Store) Write() {
 		// be sure if the underlying store might do a save with the byteslice or
 		// not. Once we get confirmation that .Delete is guaranteed not to
 		// save the byteslice, then we can assume only a read-only copy is sufficient.
-		//getType := reflect.TypeOf(store.parent)
+		getType := reflect.TypeOf(store.parent)
 
-		//println("cache kv store write", "key", hex.EncodeToString([]byte(obj.key)), "value", hex.EncodeToString(obj.val.value), "getType.Name()", getType.String())
+		println("cache kv store write", "key", hex.EncodeToString([]byte(obj.key)), "value", hex.EncodeToString(obj.val.value), "getType.Name()", getType.String())
 		if obj.val.value != nil {
 			// It already exists in the parent, hence update it.
 			store.parent.Set([]byte(obj.key), obj.val.value)
