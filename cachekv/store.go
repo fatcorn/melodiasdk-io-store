@@ -109,7 +109,6 @@ func (store *Store) Write() {
 
 	// at least happen atomically.
 	//sortedCache := make([]cEntry, 0)
-	total := 0
 	parentStore := store.parent
 
 	store.cache.Range(func(key, value any) bool {
@@ -120,15 +119,10 @@ func (store *Store) Write() {
 			} else {
 				parentStore.Delete([]byte(key.(string)))
 			}
-			total++
 		}
 		return true
 	})
 
-	if total > 0 {
-		println("total =====", "", total)
-
-	}
 }
 
 // CacheWrap implements CacheWrapper.
