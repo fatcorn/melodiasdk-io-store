@@ -55,3 +55,6 @@ func (ts *Store) GetStoreType() types.StoreType {
 }
 
 func (st *Store) ResetCache() {}
+func (st *Store) GetParentStore() types.CommitKVStore {
+	return nil
+}

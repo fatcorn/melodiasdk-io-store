@@ -1411,3 +1411,7 @@ func (rs *Store) StoreKeys() []types.StoreKey {
 	}
 	return res
 }
+
+func (st *Store) GetParentStore() types.CommitKVStore {
+	return nil
+}

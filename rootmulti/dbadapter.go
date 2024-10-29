@@ -55,3 +55,6 @@ func (cdsa commitDBStoreAdapter) SetPruning(_ pruningtypes.PruningOptions) {}
 func (cdsa commitDBStoreAdapter) GetPruning() pruningtypes.PruningOptions {
 	return pruningtypes.NewPruningOptions(pruningtypes.PruningUndefined)
 }
+func (st commitDBStoreAdapter) GetParentStore() types.CommitKVStore {
+	return nil
+}

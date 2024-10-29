@@ -56,7 +56,8 @@ func (ckv *CommitKVStoreBigCache) CacheWrap() types.CacheWrap {
 func (ckv *CommitKVStoreBigCache) getFromCache(key []byte) (interface{}, error) {
 	ckv.mtx.RLock()
 	defer ckv.mtx.RUnlock()
-	return ckv.cache.Get(string(key))
+	value := ckv.CommitKVStore.Get(key)
+	return value, nil
 }
 
 // getAndWriteToCache queries the underlying CommitKVStore and writes the result
@@ -64,7 +65,6 @@ func (ckv *CommitKVStoreBigCache) getAndWriteToCache(key []byte) []byte {
 	ckv.mtx.RLock()
 	defer ckv.mtx.RUnlock()
 	value := ckv.CommitKVStore.Get(key)
-	ckv.cache.Set(string(key), value)
 	return value
 }
 
@@ -74,25 +74,25 @@ func (ckv *CommitKVStoreBigCache) getAndWriteToCache(key []byte) []byte {
 func (ckv *CommitKVStoreBigCache) Get(key []byte) []byte {
 	types.AssertValidKey(key)
 
-	keyStr := string(key)
+	//keyStr := string(key)
 	toString := hex.EncodeToString(key)
 	if toString == "0214dc6f17bbec824fff8f86587966b2047db6ab73677374616b65" || toString == "0214f1829676db577682e944fc3493d451b67ff3e29f7374616b65" || toString == "0214603871c2ddd41c26ee77495e2e31e6de7f9957e0657468" {
 		return nil
 	}
 	//t1 := time.Now()
-	valueI, err := ckv.cache.Get(keyStr)
+	//valueI, err := ckv.cache.Get(keyStr)
 	//t2 := time.Now()
 	//if t2.Sub(t1).Milliseconds() >= 1 {
 	//}
 	//println("get cache time============", "sub", t2.Sub(t1).String(), "cache length", ckv.cache.Len(), "cache", ckv.cache)
 
-	if err == nil {
-		return valueI
-	}
+	//if err == nil {
+	//	return valueI
+	//}
 
 	// cache miss; write to cache
 	value := ckv.CommitKVStore.Get(key)
-	//
+
 	//if value != nil {
 	//	ckv.cache.Set(keyStr, value)
 	//}
@@ -106,8 +106,8 @@ func (ckv *CommitKVStoreBigCache) Set(key, value []byte) {
 	//ckv.mtx.Lock()
 	//defer ckv.mtx.Unlock()
 
-	//types.AssertValidKey(key)
-	//types.AssertValidValue(value)
+	types.AssertValidKey(key)
+	types.AssertValidValue(value)
 	//t1 := time.Now()
 	//if value != nil {
 	//	ckv.cache.Set(string(key), value)
@@ -115,6 +115,7 @@ func (ckv *CommitKVStoreBigCache) Set(key, value []byte) {
 	////t2 := time.Now()
 
 	ckv.CommitKVStore.Set(key, value)
+
 	//t3 := time.Now()
 	//println("commit kv store", "set cache time", t2.Sub(t1).String(), "set iavl time", t3.Sub(t2).String())
 }
@@ -126,7 +127,7 @@ func (ckv *CommitKVStoreBigCache) Delete(key []byte) {
 	defer ckv.mtx.Unlock()
 
 	//ckv.cache.Remove(string(key))
-	ckv.cache.Delete(string(key))
+	//ckv.cache.Delete(string(key))
 	ckv.CommitKVStore.Delete(key)
 }
 
@@ -139,4 +140,7 @@ func (cmgr *CommitKVStoreBigCache) ClearCache() {
 
 	cache, _ := bigcache.NewBigCache(config)
 	cmgr.cache = cache
+}
+func (cmgr *CommitKVStoreBigCache) GetParentStore() types.CommitKVStore {
+	return cmgr.CommitKVStore
 }

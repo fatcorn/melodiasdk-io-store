@@ -483,6 +483,9 @@ func (st *Store) GetAllKeyStrsInRange(start, end []byte) (res []string) {
 	}
 	return
 }
+func (st *Store) GetParentStore() types.CommitKVStore {
+	return nil
+}
 
 // TraverseStateChanges traverses the state changes between two versions and calls the given function.
 func (st *Store) TraverseStateChanges(startVersion, endVersion int64, fn func(version int64, changeSet *iavl.ChangeSet) error) error {

@@ -31,6 +31,7 @@ type Committer interface {
 	GetPruning() pruningtypes.PruningOptions
 
 	ClearCache()
+	GetParentStore() CommitKVStore
 }
 
 // something that can persist to disk
