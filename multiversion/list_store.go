@@ -478,16 +478,18 @@ func (s *ListStore) WriteLatestToStore() {
 			panic("should not have any estimate values when writing to parent store")
 		}
 		// if the value is deleted, then delete it from the parent store
+		store := s.parentStore.GetParent()
 		if mvValue.IsDeleted() {
 			// We use []byte(key) instead of conv.UnsafeStrToBytes because we cannot
 			// be sure if the underlying store might do a save with the byteslice or
 			// not. Once we get confirmation that .Delete is guaranteed not to
 			// save the byteslice, then we can assume only a read-only copy is sufficient.
-			s.parentStore.Delete([]byte(key))
+			store.Delete([]byte(key))
 			continue
 		}
 		if mvValue.Value() != nil {
-			s.parentStore.Set([]byte(key), mvValue.Value())
+			store.Set([]byte(key), mvValue.Value())
+			//count++
 		}
 	}
 }

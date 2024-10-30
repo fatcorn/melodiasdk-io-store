@@ -39,6 +39,11 @@ type Store struct {
 	treeMtx *sync.RWMutex
 }
 
+func (st *Store) GetParent() types.KVStore {
+	//TODO implement me
+	panic("implement me")
+}
+
 // LoadStore returns an IAVL Store as a CommitKVStore. Internally, it will load the
 // store's version (id) from the provided DB. An error is returned if the version
 // fails to load, or if called with a positive version on an empty tree.

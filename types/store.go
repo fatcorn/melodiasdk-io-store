@@ -286,6 +286,8 @@ type KVStore interface {
 	ReverseIterator(start, end []byte) Iterator
 
 	GetAllKeyStrsInRange(start, end []byte) []string
+
+	GetParent() KVStore
 }
 
 // Iterator is an alias db's Iterator for convenience.

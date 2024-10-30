@@ -96,6 +96,10 @@ type VersionIndexedStore struct {
 	totalTask    int
 }
 
+func (store *VersionIndexedStore) GetParent() types.KVStore {
+	return store.parent
+}
+
 func (store *VersionIndexedStore) ResetCache() {
 	//TODO implement me
 	panic("implement me")

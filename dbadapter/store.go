@@ -114,3 +114,6 @@ func (dsa Store) GetAllKeyStrsInRange(start, end []byte) (res []string) {
 	}
 	return
 }
+func (store Store) GetParent() types.KVStore {
+	return nil
+}

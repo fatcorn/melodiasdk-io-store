@@ -20,6 +20,10 @@ type Store struct {
 	prefix []byte
 }
 
+func (s Store) GetParent() types.KVStore {
+	return s.parent
+}
+
 func NewStore(parent types.KVStore, prefix []byte) Store {
 	return Store{
 		parent: parent,

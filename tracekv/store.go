@@ -204,3 +204,7 @@ func writeOperation(w io.Writer, op operation, tc types.TraceContext, key, value
 func (tkv *Store) GetAllKeyStrsInRange(start, end []byte) []string {
 	return tkv.parent.GetAllKeyStrsInRange(start, end)
 }
+
+func (store *Store) GetParent() types.KVStore {
+	return store.parent
+}

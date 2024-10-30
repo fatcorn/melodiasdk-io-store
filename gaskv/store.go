@@ -16,6 +16,10 @@ type Store struct {
 	parent    types.KVStore
 }
 
+func (gs *Store) GetParent() types.KVStore {
+	return gs.parent
+}
+
 // NewStore returns a reference to a new GasKVStore.
 func NewStore(parent types.KVStore, gasMeter types.GasMeter, gasConfig types.GasConfig) *Store {
 	kvs := &Store{
