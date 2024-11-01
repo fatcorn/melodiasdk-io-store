@@ -385,8 +385,8 @@ func (store *VersionIndexedStore) setValue(key, value []byte) {
 	keyStr := string(key)
 	store.Writeset[keyStr] = value
 }
-func (store *VersionIndexedStore) NewKey(key string, totalTask int, value MultiVersionValue) {
-	store.multiVersionStore.NewKey(key, totalTask, value)
+func (store *VersionIndexedStore) NewKey(key string, totalTask int) {
+	store.multiVersionStore.NewKey(key, totalTask)
 }
 
 func (store *VersionIndexedStore) WriteToMultiVersionStore() {

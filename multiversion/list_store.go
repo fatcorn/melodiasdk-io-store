@@ -7,6 +7,8 @@ import (
 	occtypes "cosmossdk.io/store/types/occ"
 	"encoding/hex"
 	"fmt"
+	"hash/crc32"
+
 	db "github.com/cosmos/cosmos-db"
 	"os"
 	"sort"
@@ -31,6 +33,8 @@ type ListStore struct {
 	//txWritesetKeys *sync.Map // map of tx index -> writeset keys []string
 	//txReadSets     *sync.Map // map of tx index -> readset ReadSet
 	//txIterateSets  *sync.Map // map of tx index -> iterateset Iterateset
+	testMap      ConcurrentMap
+	testShardMap ShardedMap
 
 	keysList []VersionStoreIndexKeys
 
@@ -58,6 +62,8 @@ func NewMultiVersionListStore(parentStore types.KVStore, totalTask int) *ListSto
 		parentStore:     parentStore,
 		keysList:        keysList,
 		versionList:     versionList,
+		testMap:         *NewConcurrentMap(),
+		testShardMap:    *NewShardedMap(128),
 	}
 }
 
@@ -70,7 +76,7 @@ func (s *ListStore) VersionedIndexedStore(index int, incarnation int, abortChann
 // GetLatest implements MultiVersionStore.
 func (s *ListStore) GetLatest(key []byte) (value MultiVersionValueItem) {
 	keyString := string(key)
-	mvVal, found := s.multiVersionMap[keyString]
+	mvVal, found := s.testShardMap.Get(keyString)
 	// if the key doesn't exist in the overall map, return nil
 	if !found {
 		return nil
@@ -82,27 +88,44 @@ func (s *ListStore) GetLatest(key []byte) (value MultiVersionValueItem) {
 	return latestVal
 }
 
-func (s *ListStore) NewKey(key string, totalTask int, value MultiVersionValue) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	mvVal, found := s.multiVersionMap[key]
-	if !found {
-		if s.versionList {
-			if value == nil {
-				value = NewMultiVersionListItem(1)
-			}
-			s.multiVersionMap[key] = value
-		} else {
-			item := NewMultiVersionItem()
-			s.multiVersionMap[key] = item
-		}
-	} else {
-		//println("get new key find")
-		if len(mvVal.(*multiVersionListItem).valueList) == 1 {
-			value = NewMultiVersionListItem(totalTask)
-			s.multiVersionMap[key] = value
-		}
-	}
+func (s *ListStore) NewKey(key string, totalTask int) {
+	s.testShardMap.Update(key, totalTask)
+	//get, b := s.testShardMap.Get(key)
+	//if !b {
+	//
+	//	s.testShardMap.Set(key, NewMultiVersionListItem(1))
+	//}else{
+	//	if len(get.(*multiVersionListItem).valueList) == 1 {
+	//		s.testShardMap.Set(key,NewMultiVersionListItem(totalTask))
+	//	}
+	//}
+
+	//
+	////get, b := s.testMap.Get(key)
+	////if !b {
+	////	s.testMap.Set(key,NewMultiVersionListItem(1))
+	////}else{
+	////	if len(get.(*multiVersionListItem).valueList) == 1 {
+	////		s.testMap.Set(key,NewMultiVersionListItem(totalTask))
+	////	}
+	////}
+	//s.mu.Lock()
+	//defer s.mu.Unlock()
+	//mvVal, found := s.multiVersionMap[key]
+	//if !found {
+	//	mvVal := NewMultiVersionListItem(1)
+	//	if value == nil {
+	//		mvVal.Delete(index, incarnation)
+	//	} else {
+	//		mvVal.Set(index, incarnation, value)
+	//	}
+	//	s.multiVersionMap[key] =  mvVal
+	//} else {
+	//	//println("get new key find")
+	//	if len(mvVal.(*multiVersionListItem).valueList) == 1 {
+	//		s.multiVersionMap[key] = NewMultiVersionListItem(totalTask)
+	//	}
+	//}
 }
 
 //func (s *ListStore) LoadMultiVersion(key string) (value MultiVersionValue,f bool) {
@@ -122,7 +145,7 @@ func (s *ListStore) NewKey(key string, totalTask int, value MultiVersionValue) {
 // GetLatestBeforeIndex implements MultiVersionStore.
 func (s *ListStore) GetLatestBeforeIndex(index int, key []byte) (value MultiVersionValueItem) {
 	keyString := string(key)
-	mvVal, found := s.multiVersionMap[keyString]
+	mvVal, found := s.testShardMap.Get(keyString)
 	// if the key doesn't exist in the overall map, return nil
 	if !found {
 		return nil
@@ -139,7 +162,7 @@ func (s *ListStore) GetLatestBeforeIndex(index int, key []byte) (value MultiVers
 // GetLatestBeforeIndex implements MultiVersionStore.
 func (s *ListStore) GetLatestBeforeIndexExpansion(index int, key []byte) (value MultiVersionValueItem) {
 	keyString := string(key)
-	mvVal, found := s.multiVersionMap[keyString]
+	mvVal, found := s.testShardMap.Get(keyString)
 	// if the key doesn't exist in the overall map, return nil
 	if !found {
 		return nil
@@ -158,7 +181,7 @@ func (s *ListStore) GetLatestBeforeIndexExpansion(index int, key []byte) (value 
 func (s *ListStore) Has(index int, key []byte) bool {
 
 	keyString := string(key)
-	mvVal, found := s.multiVersionMap[keyString]
+	mvVal, found := s.testShardMap.Get(keyString)
 	// if the key doesn't exist in the overall map, return nil
 	if !found {
 		return false // this is okay because the caller of this will THEN need to access the parent store to verify that the key doesnt exist there
@@ -187,7 +210,7 @@ func (s *ListStore) removeOldWriteset(index int, newWriteSet WriteSet) {
 			continue
 		}
 		// remove from the appropriate item if present in multiVersionMap
-		mvVal, found := s.multiVersionMap[key]
+		mvVal, found := s.testShardMap.Get(key)
 		// if the key doesn't exist in the overall map, return nil
 		if !found {
 			continue
@@ -206,21 +229,14 @@ func (s *ListStore) SetWriteset(index int, incarnation int, writeset WriteSet, t
 	writeSetKeys := make([]string, 0, len(writeset))
 	for key, value := range writeset {
 		writeSetKeys = append(writeSetKeys, key)
-		loadVal, ok := s.multiVersionMap[key]
+		loadVal, ok := s.testShardMap.Get(key)
 		if !ok {
 			panic("map get nil")
 		}
-
-		//loadVal, _ := s.multiVersionMap.LoadOrStore(key, NewMultiVersionListItem(10000)) // init if necessary
 		mvVal := loadVal.(MultiVersionValue)
-		//keyStr := hex.EncodeToString([]byte(key))
 		if value == nil {
-			// delete if nil value
-			// TODO: sync map
-			//println("delete value", "index", index, "incarnation", incarnation, "val", mvVal, "key", keyStr)
 			mvVal.Delete(index, incarnation)
 		} else {
-			//println("set value", "index", index, "incarnation", incarnation, "val", mvVal, "key", keyStr)
 			mvVal.Set(index, incarnation, value)
 		}
 	}
@@ -236,7 +252,7 @@ func (s *ListStore) InvalidateWriteset(index int, incarnation int, totalTask int
 	}
 	for _, key := range keys {
 		// invalidate all of the writeset items - is this suboptimal? - we could potentially do concurrently if slow because locking is on an item specific level
-		val, _ := s.multiVersionMap[key]
+		val, _ := s.testShardMap.Get(key)
 		val.(MultiVersionValue).SetEstimate(index, incarnation)
 	}
 	// we leave the writeset in place because we'll need it for key removal later if/when we replace with a new writeset
@@ -252,7 +268,7 @@ func (s *ListStore) SetEstimatedWriteset(index int, incarnation int, writeset Wr
 	for key := range writeset {
 		writeSetKeys = append(writeSetKeys, key)
 
-		mvVal, _ := s.multiVersionMap[key] // init if necessary
+		mvVal, _ := s.testShardMap.Get(key) // init if necessary
 		mvVal.(MultiVersionValue).SetEstimate(index, incarnation)
 	}
 	sort.Strings(writeSetKeys)
@@ -457,39 +473,123 @@ func (s *ListStore) ValidateTransactionState(index int) (bool, []int) {
 }
 
 func (s *ListStore) WriteLatestToStore() {
-	// sort the keys
-	keys := []string{}
+	for _, shard := range s.testShardMap.shards {
+		for key, val := range shard {
+			if nil == val {
+				continue
+			}
+			mvValue, found := val.(MultiVersionValue).GetLatestNonEstimate()
 
-	sort.Strings(keys)
-
-	for key, _ := range s.multiVersionMap {
-		val, ok := s.multiVersionMap[key]
-		if !ok {
-			continue
-		}
-		mvValue, found := val.(MultiVersionValue).GetLatestNonEstimate()
-
-		if !found {
-			// this means that at some point, there was an estimate, but we have since removed it so there isn't anything writeable at the key, so we can skip
-			continue
-		}
-		// we shouldn't have any ESTIMATE values when performing the write, because we read the latest non-estimate values only
-		if mvValue.IsEstimate() {
-			panic("should not have any estimate values when writing to parent store")
-		}
-		// if the value is deleted, then delete it from the parent store
-		store := s.parentStore.GetParent()
-		if mvValue.IsDeleted() {
-			// We use []byte(key) instead of conv.UnsafeStrToBytes because we cannot
-			// be sure if the underlying store might do a save with the byteslice or
-			// not. Once we get confirmation that .Delete is guaranteed not to
-			// save the byteslice, then we can assume only a read-only copy is sufficient.
-			store.Delete([]byte(key))
-			continue
-		}
-		if mvValue.Value() != nil {
-			store.Set([]byte(key), mvValue.Value())
-			//count++
+			if !found {
+				// this means that at some point, there was an estimate, but we have since removed it so there isn't anything writeable at the key, so we can skip
+				continue
+			}
+			// we shouldn't have any ESTIMATE values when performing the write, because we read the latest non-estimate values only
+			if mvValue.IsEstimate() {
+				panic("should not have any estimate values when writing to parent store")
+			}
+			// if the value is deleted, then delete it from the parent store
+			store := s.parentStore.GetParent()
+			if mvValue.IsDeleted() {
+				// We use []byte(key) instead of conv.UnsafeStrToBytes because we cannot
+				// be sure if the underlying store might do a save with the byteslice or
+				// not. Once we get confirmation that .Delete is guaranteed not to
+				// save the byteslice, then we can assume only a read-only copy is sufficient.
+				store.Delete([]byte(key))
+				continue
+			}
+			if mvValue.Value() != nil {
+				store.Set([]byte(key), mvValue.Value())
+				//count++
+			}
 		}
 	}
+
+}
+
+type ConcurrentMap struct {
+	data   map[string]interface{}
+	locks  map[string]*sync.Mutex
+	global sync.Mutex
+}
+
+func NewConcurrentMap() *ConcurrentMap {
+	return &ConcurrentMap{
+		data:  make(map[string]interface{}),
+		locks: make(map[string]*sync.Mutex),
+	}
+}
+
+func (cm *ConcurrentMap) getKeyLock(key string) *sync.Mutex {
+	cm.global.Lock()
+	defer cm.global.Unlock()
+	if lock, exists := cm.locks[key]; exists {
+		return lock
+	}
+	lock := &sync.Mutex{}
+	cm.locks[key] = lock
+	return lock
+}
+
+func (cm *ConcurrentMap) Set(key string, value interface{}) {
+	keyLock := cm.getKeyLock(key)
+	keyLock.Lock()
+	defer keyLock.Unlock()
+	cm.data[key] = value
+}
+
+func (cm *ConcurrentMap) Get(key string) (interface{}, bool) {
+	keyLock := cm.getKeyLock(key)
+	keyLock.Lock()
+	defer keyLock.Unlock()
+	value, exists := cm.data[key]
+	return value, exists
+}
+
+type ShardedMap struct {
+	shards     []map[string]interface{}
+	locks      []sync.RWMutex
+	shardCount int
+}
+
+func NewShardedMap(shardCount int) *ShardedMap {
+	shards := make([]map[string]interface{}, shardCount)
+	locks := make([]sync.RWMutex, shardCount)
+	for i := range shards {
+		shards[i] = make(map[string]interface{})
+	}
+	return &ShardedMap{shards: shards, locks: locks, shardCount: shardCount}
+}
+
+func (sm *ShardedMap) getShard(key string) int {
+	return int(crc32.ChecksumIEEE([]byte(key)) % uint32(sm.shardCount))
+}
+
+func (sm *ShardedMap) Set(key string, value interface{}) {
+	shardIndex := sm.getShard(key)
+	sm.locks[shardIndex].Lock()
+	defer sm.locks[shardIndex].Unlock()
+	sm.shards[shardIndex][key] = value
+}
+
+func (sm *ShardedMap) Update(key string, totalTask int) {
+	shardIndex := sm.getShard(key)
+	sm.locks[shardIndex].Lock()
+	defer sm.locks[shardIndex].Unlock()
+	value, exists := sm.shards[shardIndex][key]
+	if !exists {
+		sm.shards[shardIndex][key] = NewMultiVersionListItem(1)
+	} else {
+		if len(value.(*multiVersionListItem).valueList) == 1 {
+			sm.shards[shardIndex][key] = NewMultiVersionListItem(totalTask)
+		}
+	}
+}
+
+func (sm *ShardedMap) Get(key string) (interface{}, bool) {
+	shardIndex := sm.getShard(key)
+	sm.locks[shardIndex].RLock()
+	defer sm.locks[shardIndex].RUnlock()
+	value, exists := sm.shards[shardIndex][key]
+	return value, exists
 }

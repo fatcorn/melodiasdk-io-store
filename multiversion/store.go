@@ -15,7 +15,7 @@ import (
 
 type MultiVersionStore interface {
 	GetLatest(key []byte) (value MultiVersionValueItem)
-	NewKey(key string, totalTask int, value MultiVersionValue)
+	NewKey(key string, totalTask int)
 	GetLatestBeforeIndex(index int, key []byte) (value MultiVersionValueItem)
 	GetLatestBeforeIndexExpansion(index int, key []byte) (value MultiVersionValueItem)
 	Has(index int, key []byte) bool
@@ -421,13 +421,13 @@ func (s *Store) ValidateTransactionState(index int) (bool, []int) {
 
 	return iteratorValid && readsetValid, conflictIndices
 }
-func (s *Store) NewKey(key string, totalTask int, value MultiVersionValue) {
+func (s *Store) NewKey(key string, totalTask int) {
 	keyString := string(key)
 	_, found := s.multiVersionMap.Load(keyString)
 	if !found {
 		versionList := os.Getenv("versionList")
 		if versionList != "" {
-			s.multiVersionMap.Store(key, value)
+			s.multiVersionMap.Store(key, nil)
 		} else {
 			item := NewMultiVersionItem()
 			s.multiVersionMap.Store(key, item)
