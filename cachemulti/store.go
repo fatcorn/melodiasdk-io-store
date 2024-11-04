@@ -126,6 +126,21 @@ func (cms Store) Write() {
 	}
 }
 
+func (cms Store) ListStores() map[types.StoreKey]types.CacheWrap {
+	return cms.stores
+}
+
+// ExpandStores expand the current store
+func (cms Store) ExpandStores(newStores map[types.StoreKey]types.CacheWrap) types.CacheMultiStore {
+	for k, v := range newStores {
+		if _, ok := cms.stores[cms.keys[k.Name()]]; !ok {
+			cms.stores[k] = v
+			cms.keys[k.Name()] = k
+		}
+	}
+	return cms
+}
+
 // Implements CacheWrapper.
 func (cms Store) CacheWrap() types.CacheWrap {
 	return cms.CacheMultiStore().(types.CacheWrap)
