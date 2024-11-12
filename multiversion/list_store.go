@@ -51,7 +51,7 @@ func NewMultiVersionListStore(parentStore types.KVStore, totalTask int) *ListSto
 	//}
 	versionListEnv := os.Getenv("versionList")
 	versionList := true
-	if versionListEnv == "" {
+	if versionListEnv != "" {
 		versionList = false
 	}
 

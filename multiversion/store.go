@@ -157,7 +157,7 @@ func (s *Store) SetWriteset(index int, incarnation int, writeset WriteSet, total
 		loadVal, ok := s.multiVersionMap.Load(key)
 		if !ok {
 			versionList := os.Getenv("versionList")
-			if versionList != "" {
+			if versionList == "" {
 				item := NewMultiVersionListItem(totalTask)
 				s.multiVersionMap.Store(key, item)
 				loadVal = item
@@ -426,7 +426,7 @@ func (s *Store) NewKey(key string, totalTask int) {
 	_, found := s.multiVersionMap.Load(keyString)
 	if !found {
 		versionList := os.Getenv("versionList")
-		if versionList != "" {
+		if versionList == "" {
 			s.multiVersionMap.Store(key, nil)
 		} else {
 			item := NewMultiVersionItem()
