@@ -489,7 +489,12 @@ func (s *ListStore) WriteLatestToStore() {
 				panic("should not have any estimate values when writing to parent store")
 			}
 			// if the value is deleted, then delete it from the parent store
-			store := s.parentStore.GetParent()
+			var store types.KVStore
+			if hex.EncodeToString([]byte(key)) == "02" {
+				store = s.parentStore
+			} else {
+				store = s.parentStore.GetParent()
+			}
 			if mvValue.IsDeleted() {
 				// We use []byte(key) instead of conv.UnsafeStrToBytes because we cannot
 				// be sure if the underlying store might do a save with the byteslice or
