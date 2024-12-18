@@ -598,3 +598,14 @@ func (sm *ShardedMap) Get(key string) (interface{}, bool) {
 	value, exists := sm.shards[shardIndex][key]
 	return value, exists
 }
+
+func (sm *ShardedMap) Delete(key string) bool {
+	shardIndex := sm.getShard(key)
+	sm.locks[shardIndex].Lock()
+	defer sm.locks[shardIndex].Unlock()
+	_, exists := sm.shards[shardIndex][key]
+	if exists {
+		delete(sm.shards[shardIndex], key)
+	}
+	return exists
+}

@@ -54,7 +54,7 @@ type GasMeter interface {
 
 type basicGasMeter struct {
 	limit       Gas
-	consumed    map[uint64]Gas
+	consumed    sync.Map
 	lock        *sync.Mutex
 	namespaceId uint64
 }
@@ -63,7 +63,7 @@ type basicGasMeter struct {
 func NewGasMeter(limit Gas) GasMeter {
 	return &basicGasMeter{
 		limit:    limit,
-		consumed: make(map[uint64]Gas),
+		consumed: sync.Map{},
 		lock:     &sync.Mutex{},
 	}
 }
@@ -75,34 +75,28 @@ func (g *basicGasMeter) WithNamespaceId(namespaceId uint64) GasMeter {
 
 // getConsumed returns the gas consumed from the GasMeter.
 func (g *basicGasMeter) getConsumed() Gas {
-	if gas, ok := g.consumed[g.namespaceId]; ok {
-		return gas
+	if gas, ok := g.consumed.Load(g.namespaceId); ok {
+		return gas.(Gas)
 	}
 	return 0
 }
 
 // GasConsumed returns the gas consumed from the GasMeter.
 func (g *basicGasMeter) GasConsumed() Gas {
-	g.lock.Lock()
-	defer g.lock.Unlock()
 	return g.getConsumed()
 }
 
 // GasRemaining returns the gas left in the GasMeter.
 func (g *basicGasMeter) GasRemaining() Gas {
-	if g.IsPastLimit() {
+	consumed := g.getConsumed()
+	if consumed > g.limit {
 		return 0
 	}
-
-	g.lock.Lock()
-	defer g.lock.Unlock()
-	return g.limit - g.getConsumed()
+	return g.limit - consumed
 }
 
 // Limit returns the gas limit of the GasMeter.
 func (g *basicGasMeter) Limit() Gas {
-	g.lock.Lock()
-	defer g.lock.Unlock()
 	return g.limit
 }
 
@@ -112,13 +106,11 @@ func (g *basicGasMeter) Limit() Gas {
 // NOTE: This behavior is only called when recovering from panic when
 // BlockGasMeter consumes gas past the limit.
 func (g *basicGasMeter) GasConsumedToLimit() Gas {
-	if g.IsPastLimit() {
+	consumed := g.getConsumed()
+	if consumed > g.limit {
 		return g.limit
 	}
-	g.lock.Lock()
-	defer g.lock.Unlock()
-
-	return g.getConsumed()
+	return consumed
 }
 
 // addUint64Overflow performs the addition operation on two uint64 integers and
@@ -136,14 +128,14 @@ func (g *basicGasMeter) ConsumeGas(amount Gas, descriptor string) {
 	g.lock.Lock()
 	defer g.lock.Unlock()
 
-	var overflow bool
-	g.consumed[g.namespaceId], overflow = addUint64Overflow(g.getConsumed(), amount)
+	consumed := g.getConsumed()
+	newConsumed, overflow := addUint64Overflow(consumed, amount)
 	if overflow {
-		g.consumed[g.namespaceId] = math.MaxUint64
+		g.consumed.Store(g.namespaceId, Gas(math.MaxUint64))
 		panic(ErrorGasOverflow{descriptor})
 	}
-
-	if g.getConsumed() > g.limit {
+	g.consumed.Store(g.namespaceId, newConsumed)
+	if newConsumed > g.limit {
 		panic(ErrorOutOfGas{descriptor})
 	}
 }
@@ -158,26 +150,21 @@ func (g *basicGasMeter) RefundGas(amount Gas, descriptor string) {
 	g.lock.Lock()
 	defer g.lock.Unlock()
 
-	if g.getConsumed() < amount {
+	consumed := g.getConsumed()
+	if consumed < amount {
 		panic(ErrorNegativeGasConsumed{Descriptor: descriptor})
 	}
-
-	g.consumed[g.namespaceId] -= amount
+	consumed -= amount
+	g.consumed.Store(g.namespaceId, consumed)
 }
 
 // IsPastLimit returns true if gas consumed is past limit, otherwise it returns false.
 func (g *basicGasMeter) IsPastLimit() bool {
-	g.lock.Lock()
-	defer g.lock.Unlock()
-
 	return g.getConsumed() > g.limit
 }
 
 // IsOutOfGas returns true if gas consumed is greater than or equal to gas limit, otherwise it returns false.
 func (g *basicGasMeter) IsOutOfGas() bool {
-	g.lock.Lock()
-	defer g.lock.Unlock()
-
 	return g.getConsumed() >= g.limit
 }
 
@@ -187,7 +174,7 @@ func (g *basicGasMeter) String() string {
 }
 
 type infiniteGasMeter struct {
-	consumed    map[uint64]Gas
+	consumed    sync.Map
 	lock        *sync.Mutex
 	namespaceId uint64
 }
@@ -195,7 +182,7 @@ type infiniteGasMeter struct {
 // NewInfiniteGasMeter returns a new gas meter without a limit.
 func NewInfiniteGasMeter() GasMeter {
 	return &infiniteGasMeter{
-		consumed: make(map[uint64]Gas),
+		consumed: sync.Map{},
 		lock:     &sync.Mutex{},
 	}
 }
@@ -206,24 +193,20 @@ func (g *infiniteGasMeter) WithNamespaceId(namespaceId uint64) GasMeter {
 
 // getConsumed returns the gas consumed from the GasMeter.
 func (g *infiniteGasMeter) getConsumed() Gas {
-	if gas, ok := g.consumed[g.namespaceId]; ok {
-		return gas
+	if gas, ok := g.consumed.Load(g.namespaceId); ok {
+		return gas.(Gas)
 	}
 	return 0
 }
 
 // GasConsumed returns the gas consumed from the GasMeter.
 func (g *infiniteGasMeter) GasConsumed() Gas {
-	g.lock.Lock()
-	defer g.lock.Unlock()
 	return g.getConsumed()
 }
 
 // GasConsumedToLimit returns the gas consumed from the GasMeter since the gas is not confined to a limit.
 // NOTE: This behavior is only called when recovering from panic when BlockGasMeter consumes gas past the limit.
 func (g *infiniteGasMeter) GasConsumedToLimit() Gas {
-	g.lock.Lock()
-	defer g.lock.Unlock()
 	return g.getConsumed()
 }
 
@@ -243,10 +226,11 @@ func (g *infiniteGasMeter) ConsumeGas(amount Gas, descriptor string) {
 	defer g.lock.Unlock()
 	var overflow bool
 	// TODO: Should we set the consumed field after overflow checking?
-	g.consumed[g.namespaceId], overflow = addUint64Overflow(g.getConsumed(), amount)
+	newConsumed, overflow := addUint64Overflow(g.getConsumed(), amount)
 	if overflow {
 		panic(ErrorGasOverflow{descriptor})
 	}
+	g.consumed.Store(g.namespaceId, newConsumed)
 }
 
 // RefundGas will deduct the given amount from the gas consumed. If the amount is greater than the
@@ -258,12 +242,13 @@ func (g *infiniteGasMeter) ConsumeGas(amount Gas, descriptor string) {
 func (g *infiniteGasMeter) RefundGas(amount Gas, descriptor string) {
 	g.lock.Lock()
 	defer g.lock.Unlock()
+	consumed := g.getConsumed()
 
-	if g.getConsumed() < amount {
+	if consumed < amount {
 		panic(ErrorNegativeGasConsumed{Descriptor: descriptor})
 	}
-
-	g.consumed[g.namespaceId] -= amount
+	consumed -= amount
+	g.consumed.Store(g.namespaceId, consumed)
 }
 
 // IsPastLimit returns false since the gas limit is not confined.
