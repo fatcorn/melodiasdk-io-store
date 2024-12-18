@@ -78,6 +78,9 @@ func (g *basicGasMeter) getConsumed() Gas {
 	if gas, ok := g.consumed.Load(g.namespaceId); ok {
 		return gas.(Gas)
 	}
+	g.lock.Lock()
+	defer g.lock.Unlock()
+	g.consumed.Store(g.namespaceId, Gas(0))
 	return 0
 }
 
@@ -125,8 +128,6 @@ func addUint64Overflow(a, b uint64) (uint64, bool) {
 
 // ConsumeGas adds the given amount of gas to the gas consumed and panics if it overflows the limit or out of gas.
 func (g *basicGasMeter) ConsumeGas(amount Gas, descriptor string) {
-	g.lock.Lock()
-	defer g.lock.Unlock()
 
 	consumed := g.getConsumed()
 	newConsumed, overflow := addUint64Overflow(consumed, amount)
@@ -134,7 +135,19 @@ func (g *basicGasMeter) ConsumeGas(amount Gas, descriptor string) {
 		g.consumed.Store(g.namespaceId, Gas(math.MaxUint64))
 		panic(ErrorGasOverflow{descriptor})
 	}
-	g.consumed.Store(g.namespaceId, newConsumed)
+	for {
+		ok := g.consumed.CompareAndSwap(g.namespaceId, consumed, newConsumed)
+		if ok {
+			break
+		}
+		consumed = g.getConsumed()
+		newConsumed, overflow = addUint64Overflow(consumed, amount)
+		if overflow {
+			g.consumed.Store(g.namespaceId, Gas(math.MaxUint64))
+			panic(ErrorGasOverflow{descriptor})
+		}
+	}
+
 	if newConsumed > g.limit {
 		panic(ErrorOutOfGas{descriptor})
 	}
@@ -147,15 +160,23 @@ func (g *basicGasMeter) ConsumeGas(amount Gas, descriptor string) {
 // EVM-compatible chains can fully support the go-ethereum StateDb interface.
 // See https://github.com/cosmos/cosmos-sdk/pull/9403 for reference.
 func (g *basicGasMeter) RefundGas(amount Gas, descriptor string) {
-	g.lock.Lock()
-	defer g.lock.Unlock()
 
 	consumed := g.getConsumed()
 	if consumed < amount {
 		panic(ErrorNegativeGasConsumed{Descriptor: descriptor})
 	}
-	consumed -= amount
-	g.consumed.Store(g.namespaceId, consumed)
+	newConsumed := consumed - amount
+	for {
+		ok := g.consumed.CompareAndSwap(g.namespaceId, consumed, newConsumed)
+		if ok {
+			break
+		}
+		consumed = g.getConsumed()
+		if consumed < amount {
+			panic(ErrorNegativeGasConsumed{Descriptor: descriptor})
+		}
+		newConsumed = consumed - amount
+	}
 }
 
 // IsPastLimit returns true if gas consumed is past limit, otherwise it returns false.
@@ -196,6 +217,9 @@ func (g *infiniteGasMeter) getConsumed() Gas {
 	if gas, ok := g.consumed.Load(g.namespaceId); ok {
 		return gas.(Gas)
 	}
+	g.lock.Lock()
+	defer g.lock.Unlock()
+	g.consumed.Store(g.namespaceId, Gas(0))
 	return 0
 }
 
@@ -222,15 +246,24 @@ func (g *infiniteGasMeter) Limit() Gas {
 
 // ConsumeGas adds the given amount of gas to the gas consumed and panics if it overflows the limit.
 func (g *infiniteGasMeter) ConsumeGas(amount Gas, descriptor string) {
-	g.lock.Lock()
-	defer g.lock.Unlock()
 	var overflow bool
 	// TODO: Should we set the consumed field after overflow checking?
-	newConsumed, overflow := addUint64Overflow(g.getConsumed(), amount)
+	consumed := g.getConsumed()
+	newConsumed, overflow := addUint64Overflow(consumed, amount)
 	if overflow {
 		panic(ErrorGasOverflow{descriptor})
 	}
-	g.consumed.Store(g.namespaceId, newConsumed)
+	for {
+		ok := g.consumed.CompareAndSwap(g.namespaceId, consumed, newConsumed)
+		if ok {
+			break
+		}
+		consumed = g.getConsumed()
+		newConsumed, overflow = addUint64Overflow(consumed, amount)
+		if overflow {
+			panic(ErrorGasOverflow{descriptor})
+		}
+	}
 }
 
 // RefundGas will deduct the given amount from the gas consumed. If the amount is greater than the
@@ -240,15 +273,23 @@ func (g *infiniteGasMeter) ConsumeGas(amount Gas, descriptor string) {
 // EVM-compatible chains can fully support the go-ethereum StateDb interface.
 // See https://github.com/cosmos/cosmos-sdk/pull/9403 for reference.
 func (g *infiniteGasMeter) RefundGas(amount Gas, descriptor string) {
-	g.lock.Lock()
-	defer g.lock.Unlock()
 	consumed := g.getConsumed()
 
 	if consumed < amount {
 		panic(ErrorNegativeGasConsumed{Descriptor: descriptor})
 	}
-	consumed -= amount
-	g.consumed.Store(g.namespaceId, consumed)
+	newConsumed := consumed - amount
+	for {
+		ok := g.consumed.CompareAndSwap(g.namespaceId, consumed, newConsumed)
+		if ok {
+			break
+		}
+		consumed = g.getConsumed()
+		if consumed < amount {
+			panic(ErrorNegativeGasConsumed{Descriptor: descriptor})
+		}
+		newConsumed = consumed - amount
+	}
 }
 
 // IsPastLimit returns false since the gas limit is not confined.
