@@ -134,7 +134,6 @@ func (g *basicGasMeter) ConsumeGas(amount Gas, descriptor string) {
 	if newConsumed > g.limit {
 		panic(ErrorOutOfGas{descriptor})
 	}
-	println("basicGasMeter->New ConsumeGas = ", newConsumed, "Gas=", consumed, "Add=", amount)
 }
 
 // RefundGas will deduct the given amount from the gas consumed. If the amount is greater than the
@@ -233,7 +232,6 @@ func (g *infiniteGasMeter) ConsumeGas(amount Gas, descriptor string) {
 	if gas, ok := g.consumed.Load(g.namespaceId); ok {
 		gas.(*atomic.Uint64).Add(amount)
 	}
-	println("infiniteGasMeter->New ConsumeGas = ", g.GasConsumed(), "Gas=", consumed, "Add=", amount)
 }
 
 // RefundGas will deduct the given amount from the gas consumed. If the amount is greater than the
