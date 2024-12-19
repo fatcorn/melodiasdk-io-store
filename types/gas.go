@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"sync"
+	"sync/atomic"
 )
 
 // Gas consumption descriptors.
@@ -76,11 +77,13 @@ func (g *basicGasMeter) WithNamespaceId(namespaceId uint64) GasMeter {
 // getConsumed returns the gas consumed from the GasMeter.
 func (g *basicGasMeter) getConsumed() Gas {
 	if gas, ok := g.consumed.Load(g.namespaceId); ok {
-		return gas.(Gas)
+		return gas.(*atomic.Uint64).Load()
 	}
 	g.lock.Lock()
 	defer g.lock.Unlock()
-	g.consumed.Store(g.namespaceId, Gas(0))
+	var counter = new(atomic.Uint64)
+	g.consumed.Store(g.namespaceId, counter)
+
 	return 0
 }
 
@@ -116,41 +119,22 @@ func (g *basicGasMeter) GasConsumedToLimit() Gas {
 	return consumed
 }
 
-// addUint64Overflow performs the addition operation on two uint64 integers and
-// returns a boolean on whether or not the result overflows.
-func addUint64Overflow(a, b uint64) (uint64, bool) {
-	if math.MaxUint64-a < b {
-		return 0, true
-	}
-
-	return a + b, false
-}
-
 // ConsumeGas adds the given amount of gas to the gas consumed and panics if it overflows the limit or out of gas.
 func (g *basicGasMeter) ConsumeGas(amount Gas, descriptor string) {
-
 	consumed := g.getConsumed()
-	newConsumed, overflow := addUint64Overflow(consumed, amount)
+	overflow := math.MaxUint64-consumed < amount
 	if overflow {
 		g.consumed.Store(g.namespaceId, Gas(math.MaxUint64))
 		panic(ErrorGasOverflow{descriptor})
 	}
-	for {
-		ok := g.consumed.CompareAndSwap(g.namespaceId, consumed, newConsumed)
-		if ok {
-			break
-		}
-		consumed = g.getConsumed()
-		newConsumed, overflow = addUint64Overflow(consumed, amount)
-		if overflow {
-			g.consumed.Store(g.namespaceId, Gas(math.MaxUint64))
-			panic(ErrorGasOverflow{descriptor})
-		}
+	if gas, ok := g.consumed.Load(g.namespaceId); ok {
+		gas.(*atomic.Uint64).Add(amount)
 	}
-
+	newConsumed := g.getConsumed()
 	if newConsumed > g.limit {
 		panic(ErrorOutOfGas{descriptor})
 	}
+	println("basicGasMeter->New ConsumeGas = ", newConsumed, "Gas=", consumed, "Add=", amount)
 }
 
 // RefundGas will deduct the given amount from the gas consumed. If the amount is greater than the
@@ -165,17 +149,8 @@ func (g *basicGasMeter) RefundGas(amount Gas, descriptor string) {
 	if consumed < amount {
 		panic(ErrorNegativeGasConsumed{Descriptor: descriptor})
 	}
-	newConsumed := consumed - amount
-	for {
-		ok := g.consumed.CompareAndSwap(g.namespaceId, consumed, newConsumed)
-		if ok {
-			break
-		}
-		consumed = g.getConsumed()
-		if consumed < amount {
-			panic(ErrorNegativeGasConsumed{Descriptor: descriptor})
-		}
-		newConsumed = consumed - amount
+	if gas, ok := g.consumed.Load(g.namespaceId); ok {
+		gas.(*atomic.Uint64).Add(-amount)
 	}
 }
 
@@ -215,11 +190,13 @@ func (g *infiniteGasMeter) WithNamespaceId(namespaceId uint64) GasMeter {
 // getConsumed returns the gas consumed from the GasMeter.
 func (g *infiniteGasMeter) getConsumed() Gas {
 	if gas, ok := g.consumed.Load(g.namespaceId); ok {
-		return gas.(Gas)
+		return gas.(*atomic.Uint64).Load()
 	}
 	g.lock.Lock()
 	defer g.lock.Unlock()
-	g.consumed.Store(g.namespaceId, Gas(0))
+	var counter = new(atomic.Uint64)
+	g.consumed.Store(g.namespaceId, counter)
+
 	return 0
 }
 
@@ -246,24 +223,17 @@ func (g *infiniteGasMeter) Limit() Gas {
 
 // ConsumeGas adds the given amount of gas to the gas consumed and panics if it overflows the limit.
 func (g *infiniteGasMeter) ConsumeGas(amount Gas, descriptor string) {
-	var overflow bool
-	// TODO: Should we set the consumed field after overflow checking?
+
 	consumed := g.getConsumed()
-	newConsumed, overflow := addUint64Overflow(consumed, amount)
+	overflow := math.MaxUint64-consumed < amount
 	if overflow {
 		panic(ErrorGasOverflow{descriptor})
 	}
-	for {
-		ok := g.consumed.CompareAndSwap(g.namespaceId, consumed, newConsumed)
-		if ok {
-			break
-		}
-		consumed = g.getConsumed()
-		newConsumed, overflow = addUint64Overflow(consumed, amount)
-		if overflow {
-			panic(ErrorGasOverflow{descriptor})
-		}
+
+	if gas, ok := g.consumed.Load(g.namespaceId); ok {
+		gas.(*atomic.Uint64).Add(amount)
 	}
+	println("infiniteGasMeter->New ConsumeGas = ", g.GasConsumed(), "Gas=", consumed, "Add=", amount)
 }
 
 // RefundGas will deduct the given amount from the gas consumed. If the amount is greater than the
@@ -278,17 +248,8 @@ func (g *infiniteGasMeter) RefundGas(amount Gas, descriptor string) {
 	if consumed < amount {
 		panic(ErrorNegativeGasConsumed{Descriptor: descriptor})
 	}
-	newConsumed := consumed - amount
-	for {
-		ok := g.consumed.CompareAndSwap(g.namespaceId, consumed, newConsumed)
-		if ok {
-			break
-		}
-		consumed = g.getConsumed()
-		if consumed < amount {
-			panic(ErrorNegativeGasConsumed{Descriptor: descriptor})
-		}
-		newConsumed = consumed - amount
+	if gas, ok := g.consumed.Load(g.namespaceId); ok {
+		gas.(*atomic.Uint64).Add(-amount)
 	}
 }
 
