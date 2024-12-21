@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"sync"
+	"sync/atomic"
 )
 
 // Gas consumption descriptors.
@@ -54,7 +55,7 @@ type GasMeter interface {
 
 type basicGasMeter struct {
 	limit       Gas
-	consumed    map[uint64]Gas
+	consumed    sync.Map
 	lock        *sync.Mutex
 	namespaceId uint64
 }
@@ -63,7 +64,7 @@ type basicGasMeter struct {
 func NewGasMeter(limit Gas) GasMeter {
 	return &basicGasMeter{
 		limit:    limit,
-		consumed: make(map[uint64]Gas),
+		consumed: sync.Map{},
 		lock:     &sync.Mutex{},
 	}
 }
@@ -75,34 +76,33 @@ func (g *basicGasMeter) WithNamespaceId(namespaceId uint64) GasMeter {
 
 // getConsumed returns the gas consumed from the GasMeter.
 func (g *basicGasMeter) getConsumed() Gas {
-	if gas, ok := g.consumed[g.namespaceId]; ok {
-		return gas
+	if gas, ok := g.consumed.Load(g.namespaceId); ok {
+		return gas.(*atomic.Uint64).Load()
 	}
+	g.lock.Lock()
+	defer g.lock.Unlock()
+	var counter = new(atomic.Uint64)
+	g.consumed.Store(g.namespaceId, counter)
+
 	return 0
 }
 
 // GasConsumed returns the gas consumed from the GasMeter.
 func (g *basicGasMeter) GasConsumed() Gas {
-	g.lock.Lock()
-	defer g.lock.Unlock()
 	return g.getConsumed()
 }
 
 // GasRemaining returns the gas left in the GasMeter.
 func (g *basicGasMeter) GasRemaining() Gas {
-	if g.IsPastLimit() {
+	consumed := g.getConsumed()
+	if consumed > g.limit {
 		return 0
 	}
-
-	g.lock.Lock()
-	defer g.lock.Unlock()
-	return g.limit - g.getConsumed()
+	return g.limit - consumed
 }
 
 // Limit returns the gas limit of the GasMeter.
 func (g *basicGasMeter) Limit() Gas {
-	g.lock.Lock()
-	defer g.lock.Unlock()
 	return g.limit
 }
 
@@ -112,38 +112,26 @@ func (g *basicGasMeter) Limit() Gas {
 // NOTE: This behavior is only called when recovering from panic when
 // BlockGasMeter consumes gas past the limit.
 func (g *basicGasMeter) GasConsumedToLimit() Gas {
-	if g.IsPastLimit() {
+	consumed := g.getConsumed()
+	if consumed > g.limit {
 		return g.limit
 	}
-	g.lock.Lock()
-	defer g.lock.Unlock()
-
-	return g.getConsumed()
-}
-
-// addUint64Overflow performs the addition operation on two uint64 integers and
-// returns a boolean on whether or not the result overflows.
-func addUint64Overflow(a, b uint64) (uint64, bool) {
-	if math.MaxUint64-a < b {
-		return 0, true
-	}
-
-	return a + b, false
+	return consumed
 }
 
 // ConsumeGas adds the given amount of gas to the gas consumed and panics if it overflows the limit or out of gas.
 func (g *basicGasMeter) ConsumeGas(amount Gas, descriptor string) {
-	g.lock.Lock()
-	defer g.lock.Unlock()
-
-	var overflow bool
-	g.consumed[g.namespaceId], overflow = addUint64Overflow(g.getConsumed(), amount)
+	consumed := g.getConsumed()
+	overflow := math.MaxUint64-consumed < amount
 	if overflow {
-		g.consumed[g.namespaceId] = math.MaxUint64
+		g.consumed.Store(g.namespaceId, Gas(math.MaxUint64))
 		panic(ErrorGasOverflow{descriptor})
 	}
-
-	if g.getConsumed() > g.limit {
+	if gas, ok := g.consumed.Load(g.namespaceId); ok {
+		gas.(*atomic.Uint64).Add(amount)
+	}
+	newConsumed := g.getConsumed()
+	if newConsumed > g.limit {
 		panic(ErrorOutOfGas{descriptor})
 	}
 }
@@ -155,29 +143,23 @@ func (g *basicGasMeter) ConsumeGas(amount Gas, descriptor string) {
 // EVM-compatible chains can fully support the go-ethereum StateDb interface.
 // See https://github.com/cosmos/cosmos-sdk/pull/9403 for reference.
 func (g *basicGasMeter) RefundGas(amount Gas, descriptor string) {
-	g.lock.Lock()
-	defer g.lock.Unlock()
 
-	if g.getConsumed() < amount {
+	consumed := g.getConsumed()
+	if consumed < amount {
 		panic(ErrorNegativeGasConsumed{Descriptor: descriptor})
 	}
-
-	g.consumed[g.namespaceId] -= amount
+	if gas, ok := g.consumed.Load(g.namespaceId); ok {
+		gas.(*atomic.Uint64).Add(-amount)
+	}
 }
 
 // IsPastLimit returns true if gas consumed is past limit, otherwise it returns false.
 func (g *basicGasMeter) IsPastLimit() bool {
-	g.lock.Lock()
-	defer g.lock.Unlock()
-
 	return g.getConsumed() > g.limit
 }
 
 // IsOutOfGas returns true if gas consumed is greater than or equal to gas limit, otherwise it returns false.
 func (g *basicGasMeter) IsOutOfGas() bool {
-	g.lock.Lock()
-	defer g.lock.Unlock()
-
 	return g.getConsumed() >= g.limit
 }
 
@@ -187,7 +169,7 @@ func (g *basicGasMeter) String() string {
 }
 
 type infiniteGasMeter struct {
-	consumed    map[uint64]Gas
+	consumed    sync.Map
 	lock        *sync.Mutex
 	namespaceId uint64
 }
@@ -195,7 +177,7 @@ type infiniteGasMeter struct {
 // NewInfiniteGasMeter returns a new gas meter without a limit.
 func NewInfiniteGasMeter() GasMeter {
 	return &infiniteGasMeter{
-		consumed: make(map[uint64]Gas),
+		consumed: sync.Map{},
 		lock:     &sync.Mutex{},
 	}
 }
@@ -206,24 +188,25 @@ func (g *infiniteGasMeter) WithNamespaceId(namespaceId uint64) GasMeter {
 
 // getConsumed returns the gas consumed from the GasMeter.
 func (g *infiniteGasMeter) getConsumed() Gas {
-	if gas, ok := g.consumed[g.namespaceId]; ok {
-		return gas
+	if gas, ok := g.consumed.Load(g.namespaceId); ok {
+		return gas.(*atomic.Uint64).Load()
 	}
+	g.lock.Lock()
+	defer g.lock.Unlock()
+	var counter = new(atomic.Uint64)
+	g.consumed.Store(g.namespaceId, counter)
+
 	return 0
 }
 
 // GasConsumed returns the gas consumed from the GasMeter.
 func (g *infiniteGasMeter) GasConsumed() Gas {
-	g.lock.Lock()
-	defer g.lock.Unlock()
 	return g.getConsumed()
 }
 
 // GasConsumedToLimit returns the gas consumed from the GasMeter since the gas is not confined to a limit.
 // NOTE: This behavior is only called when recovering from panic when BlockGasMeter consumes gas past the limit.
 func (g *infiniteGasMeter) GasConsumedToLimit() Gas {
-	g.lock.Lock()
-	defer g.lock.Unlock()
 	return g.getConsumed()
 }
 
@@ -239,13 +222,15 @@ func (g *infiniteGasMeter) Limit() Gas {
 
 // ConsumeGas adds the given amount of gas to the gas consumed and panics if it overflows the limit.
 func (g *infiniteGasMeter) ConsumeGas(amount Gas, descriptor string) {
-	g.lock.Lock()
-	defer g.lock.Unlock()
-	var overflow bool
-	// TODO: Should we set the consumed field after overflow checking?
-	g.consumed[g.namespaceId], overflow = addUint64Overflow(g.getConsumed(), amount)
+
+	consumed := g.getConsumed()
+	overflow := math.MaxUint64-consumed < amount
 	if overflow {
 		panic(ErrorGasOverflow{descriptor})
+	}
+
+	if gas, ok := g.consumed.Load(g.namespaceId); ok {
+		gas.(*atomic.Uint64).Add(amount)
 	}
 }
 
@@ -256,14 +241,14 @@ func (g *infiniteGasMeter) ConsumeGas(amount Gas, descriptor string) {
 // EVM-compatible chains can fully support the go-ethereum StateDb interface.
 // See https://github.com/cosmos/cosmos-sdk/pull/9403 for reference.
 func (g *infiniteGasMeter) RefundGas(amount Gas, descriptor string) {
-	g.lock.Lock()
-	defer g.lock.Unlock()
+	consumed := g.getConsumed()
 
-	if g.getConsumed() < amount {
+	if consumed < amount {
 		panic(ErrorNegativeGasConsumed{Descriptor: descriptor})
 	}
-
-	g.consumed[g.namespaceId] -= amount
+	if gas, ok := g.consumed.Load(g.namespaceId); ok {
+		gas.(*atomic.Uint64).Add(-amount)
+	}
 }
 
 // IsPastLimit returns false since the gas limit is not confined.
