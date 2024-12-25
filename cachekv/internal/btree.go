@@ -74,6 +74,10 @@ func (bt BTree) Copy() BTree {
 	}
 }
 
+func (bt BTree) IsNil() bool {
+	return bt.tree == nil
+}
+
 // item is a btree item with byte slices as keys and values
 type item struct {
 	key   []byte

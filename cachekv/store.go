@@ -42,7 +42,6 @@ func NewStore(parent types.KVStore) *Store {
 		//unsortedCache: make(map[string]struct{}),
 		cache:         &sync.Map{},
 		unsortedCache: &sync.Map{},
-		sortedCache:   internal.NewBTree(),
 		parent:        parent,
 	}
 }
@@ -94,7 +93,8 @@ func (store *Store) Delete(key []byte) {
 func (store *Store) resetCaches() {
 	store.cache = &sync.Map{}
 	store.unsortedCache = &sync.Map{}
-	store.sortedCache = internal.NewBTree()
+	store.sortedCache = internal.BTree{}
+	store.parent = nil
 }
 
 // Implements Cachetypes.KVStore.
@@ -288,6 +288,9 @@ func (store *Store) clearUnsortedCacheSubset(unsorted []*kv.Pair, sortState sort
 		})
 	}
 
+	if store.sortedCache.IsNil() {
+		store.sortedCache = internal.NewBTree()
+	}
 	for _, item := range unsorted {
 		// sortedCache is able to store `nil` value to represent deleted items.
 		store.sortedCache.Set(item.Key, item.Value)
