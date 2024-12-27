@@ -601,8 +601,8 @@ func (sm *ShardedMap) Get(key string) (interface{}, bool) {
 
 func (sm *ShardedMap) SetIf(key string, value interface{}, ifFun func(interface{}, bool) bool) interface{} {
 	shardIndex := sm.getShard(key)
-	sm.locks[shardIndex].RLock()
-	defer sm.locks[shardIndex].RUnlock()
+	sm.locks[shardIndex].Lock()
+	defer sm.locks[shardIndex].Unlock()
 	old, exists := sm.shards[shardIndex][key]
 	if ifFun(old, exists) {
 		sm.shards[shardIndex][key] = value
