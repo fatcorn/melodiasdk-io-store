@@ -473,42 +473,53 @@ func (s *ListStore) ValidateTransactionState(index int) (bool, []int) {
 }
 
 func (s *ListStore) WriteLatestToStore() {
-	for _, shard := range s.testShardMap.shards {
-		for key, val := range shard {
-			if nil == val {
-				continue
-			}
-			mvValue, found := val.(MultiVersionValue).GetLatestNonEstimate()
 
-			if !found {
-				// this means that at some point, there was an estimate, but we have since removed it so there isn't anything writeable at the key, so we can skip
-				continue
+	wg := &sync.WaitGroup{}
+	println("shard map shards", "total", len(s.testShardMap.shards), "count", s.testShardMap.shardCount)
+
+	for _, shard := range s.testShardMap.shards {
+		tmpShard := shard
+		wg.Add(1)
+		go func(newShard map[string]interface{}) {
+			defer wg.Done()
+			for key, val := range newShard {
+				if nil == val {
+					continue
+				}
+				mvValue, found := val.(MultiVersionValue).GetLatestNonEstimate()
+
+				if !found {
+					// this means that at some point, there was an estimate, but we have since removed it so there isn't anything writeable at the key, so we can skip
+					continue
+				}
+				// we shouldn't have any ESTIMATE values when performing the write, because we read the latest non-estimate values only
+				if mvValue.IsEstimate() {
+					panic("should not have any estimate values when writing to parent store")
+				}
+				// if the value is deleted, then delete it from the parent store
+				var store types.KVStore
+				if hex.EncodeToString([]byte(key)) == "02" {
+					store = s.parentStore
+				} else {
+					store = s.parentStore.GetParent()
+				}
+				if mvValue.IsDeleted() {
+					// We use []byte(key) instead of conv.UnsafeStrToBytes because we cannot
+					// be sure if the underlying store might do a save with the byteslice or
+					// not. Once we get confirmation that .Delete is guaranteed not to
+					// save the byteslice, then we can assume only a read-only copy is sufficient.
+					store.Delete([]byte(key))
+					continue
+				}
+				if mvValue.Value() != nil {
+					store.Set([]byte(key), mvValue.Value())
+					//count++
+				}
 			}
-			// we shouldn't have any ESTIMATE values when performing the write, because we read the latest non-estimate values only
-			if mvValue.IsEstimate() {
-				panic("should not have any estimate values when writing to parent store")
-			}
-			// if the value is deleted, then delete it from the parent store
-			var store types.KVStore
-			if hex.EncodeToString([]byte(key)) == "02" {
-				store = s.parentStore
-			} else {
-				store = s.parentStore.GetParent()
-			}
-			if mvValue.IsDeleted() {
-				// We use []byte(key) instead of conv.UnsafeStrToBytes because we cannot
-				// be sure if the underlying store might do a save with the byteslice or
-				// not. Once we get confirmation that .Delete is guaranteed not to
-				// save the byteslice, then we can assume only a read-only copy is sufficient.
-				store.Delete([]byte(key))
-				continue
-			}
-			if mvValue.Value() != nil {
-				store.Set([]byte(key), mvValue.Value())
-				//count++
-			}
-		}
+		}(tmpShard)
+
 	}
+	wg.Wait()
 
 }
 
