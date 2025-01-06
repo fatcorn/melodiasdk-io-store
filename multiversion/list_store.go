@@ -514,7 +514,9 @@ func (s *ListStore) WriteLatestToStore() {
 			}
 		}
 	}
-	println("list store =========", "total", total, "t", time.Since(now).String())
+	if total > 0 {
+		println("list store =========", "total", total, "t", time.Since(now).String())
+	}
 
 }
 
