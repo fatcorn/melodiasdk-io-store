@@ -225,9 +225,13 @@ func (s *ListStore) removeOldWriteset(index int, newWriteSet WriteSet) {
 func (s *ListStore) SetWriteset(index int, incarnation int, writeset WriteSet, totalTask int) {
 	// TODO: add telemetry spans
 	// remove old writeset if it exists
+	t0 := time.Now()
 	s.removeOldWriteset(index, writeset)
+	t1 := time.Now()
 
 	writeSetKeys := make([]string, 0, len(writeset))
+	t2 := time.Now()
+
 	for key, value := range writeset {
 		writeSetKeys = append(writeSetKeys, key)
 		loadVal, ok := s.testShardMap.Get(key)
@@ -241,8 +245,15 @@ func (s *ListStore) SetWriteset(index int, incarnation int, writeset WriteSet, t
 			mvVal.Set(index, incarnation, value)
 		}
 	}
+	t3 := time.Now()
+
 	sort.Strings(writeSetKeys) // TODO: if we're sorting here anyways, maybe we just put it into a btree instead of a slice
+	t4 := time.Now()
+
 	s.keysList[index].txWritesetKeys = writeSetKeys
+	if time.Since(t0).Milliseconds() > 10 {
+		println("set write set", "remove old", t1.Sub(t0).String(), "make arr", t2.Sub(t1).String(), "for delete set", t3.Sub(t2).String(), "sort ", t4.Sub(t3).String(), "set tx", time.Since(t4).String(), "size", len(writeset), "keys size", len(writeSetKeys))
+	}
 }
 
 // InvalidateWriteset iterates over the keys for the given index and incarnation writeset and replaces with ESTIMATEs
