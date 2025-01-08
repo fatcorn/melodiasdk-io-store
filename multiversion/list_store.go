@@ -229,6 +229,9 @@ func (s *ListStore) SetWriteset(index int, incarnation int, writeset WriteSet, t
 	t0 := time.Now()
 	s.removeOldWriteset(index, writeset)
 	t1 := time.Now()
+	if len(writeset) == 0 {
+		return
+	}
 
 	writeSetKeys := make([]string, 0, len(writeset))
 	t2 := time.Now()

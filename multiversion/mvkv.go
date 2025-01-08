@@ -395,8 +395,12 @@ func (store *VersionIndexedStore) WriteToMultiVersionStore() {
 	// defer store.mtx.Unlock()
 	// defer telemetry.MeasureSince(time.Now(), "store", "mvkv", "write_mvs")
 	store.multiVersionStore.SetWriteset(store.transactionIndex, store.incarnation, store.Writeset, store.totalTask)
-	store.multiVersionStore.SetReadset(store.transactionIndex, store.readset)
-	store.multiVersionStore.SetIterateset(store.transactionIndex, store.iterateset)
+	if len(store.readset) > 0 {
+		store.multiVersionStore.SetReadset(store.transactionIndex, store.readset)
+	}
+	if len(store.iterateset) > 0 {
+		store.multiVersionStore.SetIterateset(store.transactionIndex, store.iterateset)
+	}
 }
 
 func (store *VersionIndexedStore) WriteEstimatesToMultiVersionStore() {
