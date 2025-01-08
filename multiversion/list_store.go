@@ -203,6 +203,7 @@ func (s *ListStore) removeOldWriteset(index int, newWriteSet WriteSet) {
 	if oldKeys == nil || len(oldKeys) == 0 {
 		return
 	}
+	println("remove old write set", "index", index, "write set", len(newWriteSet), "old keys", len(oldKeys))
 	// we need to delete all of the keys in the writeset from the multiversion store
 	for _, key := range oldKeys {
 		// small optimization to check if the new writeset is going to write this key, if so, we can leave it behind
@@ -251,8 +252,8 @@ func (s *ListStore) SetWriteset(index int, incarnation int, writeset WriteSet, t
 	t4 := time.Now()
 
 	s.keysList[index].txWritesetKeys = writeSetKeys
-	if time.Since(t0).Milliseconds() > 10 {
-		println("set write set", "remove old", t1.Sub(t0).String(), "make arr", t2.Sub(t1).String(), "for delete set", t3.Sub(t2).String(), "sort ", t4.Sub(t3).String(), "set tx", time.Since(t4).String(), "size", len(writeset), "keys size", len(writeSetKeys))
+	if time.Since(t0).Milliseconds() > 4 {
+		println("set write set", "remove old", t1.Sub(t0).String(), "make arr", t2.Sub(t1).String(), "for delete set", t3.Sub(t2).String(), "sort ", t4.Sub(t3).String(), "set tx", time.Since(t4).String(), "size", len(writeset), "keys size", len(writeSetKeys), "index", index)
 	}
 }
 
