@@ -178,7 +178,7 @@ func (s *ListStore) SetWriteset(index int, incarnation int, writeset WriteSet, t
 
 	s.keysList[index].txWritesetKeys = writeSetKeys
 	if time.Since(t0).Milliseconds() > 4 {
-		println("set write set", "remove old", t1.Sub(t0).String(), "make arr", t2.Sub(t1).String(), "for delete set", t3.Sub(t2).String(), "sort ", t4.Sub(t3).String(), "set tx", time.Since(t4).String(), "size", len(writeset), "keys size", len(writeSetKeys), "index", index)
+		println("set write set", "remove old", t1.Sub(t0).String(), "make arr", t2.Sub(t1).String(), "for delete set", t3.Sub(t2).String(), "sort ", t4.Sub(t3).String(), "set tx", time.Since(t4).String(), "size", len(writeset), "keys size", len(writeSetKeys), "index", index, "incarnation", incarnation)
 	}
 }
 
