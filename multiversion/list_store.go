@@ -149,7 +149,9 @@ func (s *ListStore) SetWriteset(index int, incarnation int, writeset WriteSet, t
 	// TODO: add telemetry spans
 	// remove old writeset if it exists
 	t0 := time.Now()
-	s.removeOldWriteset(index, writeset)
+	if incarnation > 0 {
+		s.removeOldWriteset(index, writeset)
+	}
 	t1 := time.Now()
 	if len(writeset) == 0 {
 		return
