@@ -11,7 +11,6 @@ import (
 	"time"
 
 	db "github.com/cosmos/cosmos-db"
-	"os"
 	"sort"
 	"sync"
 )
@@ -27,44 +26,16 @@ var _ MultiVersionStore = (*ListStore)(nil)
 
 type ListStore struct {
 	// map that stores the key string -> MultiVersionValue mapping for accessing from a given key
-	multiVersionMap map[string]any
-	writeKeyList    []MultiVersionValue
-	//// TODO: do we need to support iterators as well similar to how cachekv does it - yes
-	//
-	//txWritesetKeys *sync.Map // map of tx index -> writeset keys []string
-	//txReadSets     *sync.Map // map of tx index -> readset ReadSet
-	//txIterateSets  *sync.Map // map of tx index -> iterateset Iterateset
-	testMap      ConcurrentMap
-	testShardMap ShardedMap
-
-	keysList []VersionStoreIndexKeys
-
+	shardMap    ShardedMap
+	keysList    []VersionStoreIndexKeys
 	parentStore types.KVStore
-	versionList bool
-	mu          sync.Mutex
 }
 
 func NewMultiVersionListStore(parentStore types.KVStore, totalTask int) *ListStore {
-	//config := bigcache.DefaultConfig(time.Minute * 100000)
-	//cache, err := bigcache.NewBigCache(config)
-	//if err != nil {
-	//	panic(fmt.Errorf("failed to create KVStore cache: %s", err))
-	//}
-	versionListEnv := os.Getenv("versionList")
-	versionList := true
-	if versionListEnv != "" {
-		versionList = false
-	}
-
-	keysList := make([]VersionStoreIndexKeys, totalTask)
-	versionMap := make(map[string]any)
 	return &ListStore{
-		multiVersionMap: versionMap,
-		parentStore:     parentStore,
-		keysList:        keysList,
-		versionList:     versionList,
-		testMap:         *NewConcurrentMap(),
-		testShardMap:    *NewShardedMap(128),
+		parentStore: parentStore,
+		keysList:    make([]VersionStoreIndexKeys, totalTask),
+		shardMap:    *NewShardedMap(128),
 	}
 }
 
@@ -77,7 +48,7 @@ func (s *ListStore) VersionedIndexedStore(index int, incarnation int, abortChann
 // GetLatest implements MultiVersionStore.
 func (s *ListStore) GetLatest(key []byte) (value MultiVersionValueItem) {
 	keyString := string(key)
-	mvVal, found := s.testShardMap.Get(keyString)
+	mvVal, found := s.shardMap.Get(keyString)
 	// if the key doesn't exist in the overall map, return nil
 	if !found {
 		return nil
@@ -90,63 +61,14 @@ func (s *ListStore) GetLatest(key []byte) (value MultiVersionValueItem) {
 }
 
 func (s *ListStore) NewKey(key string, totalTask int) {
-	s.testShardMap.Update(key, totalTask)
-	//get, b := s.testShardMap.Get(key)
-	//if !b {
-	//
-	//	s.testShardMap.Set(key, NewMultiVersionListItem(1))
-	//}else{
-	//	if len(get.(*multiVersionListItem).valueList) == 1 {
-	//		s.testShardMap.Set(key,NewMultiVersionListItem(totalTask))
-	//	}
-	//}
+	s.shardMap.Update(key, totalTask)
 
-	//
-	////get, b := s.testMap.Get(key)
-	////if !b {
-	////	s.testMap.Set(key,NewMultiVersionListItem(1))
-	////}else{
-	////	if len(get.(*multiVersionListItem).valueList) == 1 {
-	////		s.testMap.Set(key,NewMultiVersionListItem(totalTask))
-	////	}
-	////}
-	//s.mu.Lock()
-	//defer s.mu.Unlock()
-	//mvVal, found := s.multiVersionMap[key]
-	//if !found {
-	//	mvVal := NewMultiVersionListItem(1)
-	//	if value == nil {
-	//		mvVal.Delete(index, incarnation)
-	//	} else {
-	//		mvVal.Set(index, incarnation, value)
-	//	}
-	//	s.multiVersionMap[key] =  mvVal
-	//} else {
-	//	//println("get new key find")
-	//	if len(mvVal.(*multiVersionListItem).valueList) == 1 {
-	//		s.multiVersionMap[key] = NewMultiVersionListItem(totalTask)
-	//	}
-	//}
 }
-
-//func (s *ListStore) LoadMultiVersion(key string) (value MultiVersionValue,f bool) {
-//	mvVal, found := s.multiVersionMap.Get(key)
-//	// if the key doesn't exist in the overall map, return nil
-//	if found != nil {
-//		return nil,false
-//	}
-//	keyIndex := binary.LittleEndian.Uint32(mvVal)
-//	versionValue := s.writeKeyList[keyIndex]
-//	if versionValue == nil {
-//		return nil,false
-//	}
-//	return versionValue,true
-//}
 
 // GetLatestBeforeIndex implements MultiVersionStore.
 func (s *ListStore) GetLatestBeforeIndex(index int, key []byte) (value MultiVersionValueItem) {
 	keyString := string(key)
-	mvVal, found := s.testShardMap.Get(keyString)
+	mvVal, found := s.shardMap.Get(keyString)
 	// if the key doesn't exist in the overall map, return nil
 	if !found {
 		return nil
@@ -163,7 +85,7 @@ func (s *ListStore) GetLatestBeforeIndex(index int, key []byte) (value MultiVers
 // GetLatestBeforeIndex implements MultiVersionStore.
 func (s *ListStore) GetLatestBeforeIndexExpansion(index int, key []byte) (value MultiVersionValueItem) {
 	keyString := string(key)
-	mvVal, found := s.testShardMap.Get(keyString)
+	mvVal, found := s.shardMap.Get(keyString)
 	// if the key doesn't exist in the overall map, return nil
 	if !found {
 		return nil
@@ -182,7 +104,7 @@ func (s *ListStore) GetLatestBeforeIndexExpansion(index int, key []byte) (value 
 func (s *ListStore) Has(index int, key []byte) bool {
 
 	keyString := string(key)
-	mvVal, found := s.testShardMap.Get(keyString)
+	mvVal, found := s.shardMap.Get(keyString)
 	// if the key doesn't exist in the overall map, return nil
 	if !found {
 		return false // this is okay because the caller of this will THEN need to access the parent store to verify that the key doesnt exist there
@@ -212,7 +134,7 @@ func (s *ListStore) removeOldWriteset(index int, newWriteSet WriteSet) {
 			continue
 		}
 		// remove from the appropriate item if present in multiVersionMap
-		mvVal, found := s.testShardMap.Get(key)
+		mvVal, found := s.shardMap.Get(key)
 		// if the key doesn't exist in the overall map, return nil
 		if !found {
 			continue
@@ -238,7 +160,7 @@ func (s *ListStore) SetWriteset(index int, incarnation int, writeset WriteSet, t
 
 	for key, value := range writeset {
 		writeSetKeys = append(writeSetKeys, key)
-		loadVal, ok := s.testShardMap.Get(key)
+		loadVal, ok := s.shardMap.Get(key)
 		if !ok {
 			panic("map get nil")
 		}
@@ -268,7 +190,7 @@ func (s *ListStore) InvalidateWriteset(index int, incarnation int, totalTask int
 	}
 	for _, key := range keys {
 		// invalidate all of the writeset items - is this suboptimal? - we could potentially do concurrently if slow because locking is on an item specific level
-		val, _ := s.testShardMap.Get(key)
+		val, _ := s.shardMap.Get(key)
 		val.(MultiVersionValue).SetEstimate(index, incarnation)
 	}
 	// we leave the writeset in place because we'll need it for key removal later if/when we replace with a new writeset
@@ -284,7 +206,7 @@ func (s *ListStore) SetEstimatedWriteset(index int, incarnation int, writeset Wr
 	for key := range writeset {
 		writeSetKeys = append(writeSetKeys, key)
 
-		mvVal, _ := s.testShardMap.Get(key) // init if necessary
+		mvVal, _ := s.shardMap.Get(key) // init if necessary
 		mvVal.(MultiVersionValue).SetEstimate(index, incarnation)
 	}
 	sort.Strings(writeSetKeys)
@@ -492,7 +414,7 @@ func (s *ListStore) WriteLatestToStore() {
 
 	now := time.Now()
 	total := 0
-	for _, shard := range s.testShardMap.shards {
+	for _, shard := range s.shardMap.shards {
 		for key, val := range shard {
 			if nil == val {
 				continue
