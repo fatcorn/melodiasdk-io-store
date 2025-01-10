@@ -125,7 +125,6 @@ func (s *ListStore) removeOldWriteset(index int, newWriteSet WriteSet) {
 	if oldKeys == nil || len(oldKeys) == 0 {
 		return
 	}
-	println("remove old write set", "index", index, "write set", len(newWriteSet), "old keys", len(oldKeys))
 	// we need to delete all of the keys in the writeset from the multiversion store
 	for _, key := range oldKeys {
 		// small optimization to check if the new writeset is going to write this key, if so, we can leave it behind
@@ -414,8 +413,6 @@ func (s *ListStore) ValidateTransactionState(index int) (bool, []int) {
 
 func (s *ListStore) WriteLatestToStore() {
 
-	now := time.Now()
-	total := 0
 	for _, shard := range s.shardMap.shards {
 		for key, val := range shard {
 			if nil == val {
@@ -438,7 +435,6 @@ func (s *ListStore) WriteLatestToStore() {
 			} else {
 				store = s.parentStore.GetParent()
 			}
-			total++
 			if mvValue.IsDeleted() {
 				// We use []byte(key) instead of conv.UnsafeStrToBytes because we cannot
 				// be sure if the underlying store might do a save with the byteslice or
@@ -452,9 +448,6 @@ func (s *ListStore) WriteLatestToStore() {
 				//count++
 			}
 		}
-	}
-	if total > 0 {
-		println("list store =========", "total", total, "t", time.Since(now).String())
 	}
 
 }
