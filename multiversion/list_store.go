@@ -383,7 +383,7 @@ func (s *ListStore) checkReadsetAtIndex(index int) (bool, []int) {
 				}
 			} else if !bytes.Equal(latestValue.Value(), value) {
 				conflictSet[latestValue.Index()] = struct{}{}
-				fmt.Println("3key:", hexKey, "latestValue:", hex.EncodeToString(latestValue.Value()), "index", latestValue.Index(), "value:", hex.EncodeToString(value))
+				//fmt.Println("3key:", hexKey, "latestValue:", hex.EncodeToString(latestValue.Value()), "index", latestValue.Index(), "value:", hex.EncodeToString(value))
 				valid = false
 			}
 		}
